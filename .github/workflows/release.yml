@@ -39,6 +39,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          PNPM_ALLOW_BUILDS: true
 
       - name: Typecheck
         run: pnpm run typecheck
