@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { expressRateLimit } from '../../src/adapters/express.js'
-import { fastifyRateLimit } from '../../src/adapters/fastify.js'
-import { honoRateLimit } from '../../src/adapters/hono.js'
-import { createHttpRateLimiter } from '../../src/adapters/http.js'
+import { rateLimit as expressRateLimit } from '../../src/adapters/express.js'
+import { rateLimit as fastifyRateLimit } from '../../src/adapters/fastify.js'
+import { rateLimit as honoRateLimit } from '../../src/adapters/hono.js'
+import { rateLimit as createHttpRateLimiter } from '../../src/adapters/http.js'
 import type {
   AllowedResult,
   Limiter,
@@ -455,28 +455,15 @@ describe('Hono Adapter', () => {
 // ─── Fastify Adapter Tests ───────────────────────────────────────────────────
 
 describe('Fastify Adapter', () => {
-  it('registers onRequest hook', () => {
+  it('returns a hook function', () => {
     const limiter = createMockLimiter({ allowed: true })
-    const plugin = fastifyRateLimit({ limiter })
-    const addHook = vi.fn()
-    const fastify = { addHook, decorate: vi.fn() }
-
-    plugin(fastify as any)
-    expect(addHook).toHaveBeenCalledWith('onRequest', expect.any(Function))
+    const hook = fastifyRateLimit({ limiter })
+    expect(typeof hook).toBe('function')
   })
 
   it('hook allows request through', async () => {
     const limiter = createMockLimiter({ allowed: true })
-    const plugin = fastifyRateLimit({ limiter })
-    let hookFn: any
-    const fastify = {
-      addHook(_name: string, fn: any) {
-        hookFn = fn
-      },
-      decorate: vi.fn(),
-    }
-
-    plugin(fastify as any)
+    const hook = fastifyRateLimit({ limiter })
 
     const request = { ip: '1.2.3.4', headers: {}, method: 'GET', url: '/api' }
     const reply = {
@@ -487,23 +474,14 @@ describe('Fastify Adapter', () => {
       sent: false,
     }
 
-    await hookFn(request, reply)
+    await hook(request as any, reply as any)
     expect(reply.code).not.toHaveBeenCalled()
     expect(reply.headers).toHaveBeenCalled() // headers set
   })
 
   it('hook sends 429 when denied', async () => {
     const limiter = createMockLimiter({ allowed: false })
-    const plugin = fastifyRateLimit({ limiter })
-    let hookFn: any
-    const fastify = {
-      addHook(_name: string, fn: any) {
-        hookFn = fn
-      },
-      decorate: vi.fn(),
-    }
-
-    plugin(fastify as any)
+    const hook = fastifyRateLimit({ limiter })
 
     const request = { ip: '1.2.3.4', headers: {}, method: 'GET', url: '/api' }
     const reply = {
@@ -514,7 +492,7 @@ describe('Fastify Adapter', () => {
       sent: false,
     }
 
-    await hookFn(request, reply)
+    await hook(request as any, reply as any)
     expect(reply.code).toHaveBeenCalledWith(429)
     expect(reply.send).toHaveBeenCalled()
   })

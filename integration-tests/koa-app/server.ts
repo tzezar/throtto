@@ -1,13 +1,13 @@
-import { rateLimit } from '@tzezar/throtto'
-import { koaRateLimit } from '@tzezar/throtto/adapters/koa'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/koa'
 import Koa from 'koa'
 
 const app = new Koa()
 
 // Global rate limit
 app.use(
-  koaRateLimit({
-    limiter: rateLimit('10/minute'),
+  rateLimit({
+    limiter: createLimiter('10/minute'),
     skipPaths: ['/health'],
   }),
 )

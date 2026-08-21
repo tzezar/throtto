@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Astro Types ─────────────────────────────────────────────────────────────
 
@@ -32,6 +33,15 @@ export interface AstroAdapterConfig {
   excludePaths?: string[] | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: AstroAdapterConfig | string): AstroAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
@@ -39,18 +49,21 @@ export interface AstroAdapterConfig {
  *
  * Usage in src/middleware.ts:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { astroRateLimit } from 'throtto/adapters/astro'
+ * import { rateLimit } from 'throtto/adapters/astro'
  *
- * export const onRequest = astroRateLimit({
- *   limiter: rateLimit('100/minute'),
+ * export const onRequest = rateLimit('100/minute')
+ * // Or with full config:
+ * export const onRequest = rateLimit({
+ *   limiter: myLimiter,
  *   paths: ['/api/*'],
  * })
  * ```
  */
-export function astroRateLimit(
-  config: AstroAdapterConfig,
+export function rateLimit(
+  config: AstroAdapterConfig | string,
 ): (ctx: AstroContext, next: AstroNext) => Promise<Response> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -63,7 +76,7 @@ export function astroRateLimit(
     onDeny,
     paths,
     excludePaths,
-  } = config
+  } = resolved
 
   return async (ctx: AstroContext, next: AstroNext): Promise<Response> => {
     const pathname = ctx.url.pathname

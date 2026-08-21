@@ -1,8 +1,8 @@
 import { createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { withRateLimit } from '@tzezar/throtto/adapters/nextjs'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/nextjs'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
 // Simulate Next.js route handler pattern
 const handler = async (req: Request): Promise<Response> => {
@@ -18,7 +18,7 @@ const handler = async (req: Request): Promise<Response> => {
 }
 
 // Wrap with rate limiting - skipPaths for /health
-const rateLimitedHandler = withRateLimit(
+const rateLimitedHandler = rateLimit(
   {
     limiter,
     skipPaths: ['/health'],
@@ -28,8 +28,8 @@ const rateLimitedHandler = withRateLimit(
 )
 
 // Strict handler for /api/login - separate limiter
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginHandler = withRateLimit(
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginHandler = rateLimit(
   {
     limiter: loginLimiter,
     key: () => 'test-key',

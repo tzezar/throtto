@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── SvelteKit Types ─────────────────────────────────────────────────────────
 
@@ -36,6 +37,15 @@ export interface SvelteKitAdapterConfig {
   excludePaths?: string[] | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: SvelteKitAdapterConfig | string): SvelteKitAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Handle Hook ─────────────────────────────────────────────────────────────
 
 /**
@@ -43,21 +53,21 @@ export interface SvelteKitAdapterConfig {
  *
  * Usage in hooks.server.ts:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { sveltekitRateLimit } from 'throtto/adapters/sveltekit'
+ * import { rateLimit } from 'throtto/adapters/sveltekit'
  *
- * const rateLimitHandle = sveltekitRateLimit({
- *   limiter: rateLimit('100/minute'),
+ * export const handle = rateLimit('100/minute')
+ * // Or with full config:
+ * export const handle = rateLimit({
+ *   limiter: myLimiter,
  *   paths: ['/api/*'],
  * })
- *
- * export const handle = rateLimitHandle
- * // Or compose: export const handle = sequence(rateLimitHandle, otherHandle)
  * ```
  */
-export function sveltekitRateLimit(
-  config: SvelteKitAdapterConfig,
+export function rateLimit(
+  config: SvelteKitAdapterConfig | string,
 ): (input: { event: SvelteKitEvent; resolve: SvelteKitResolve }) => Promise<Response> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -70,7 +80,7 @@ export function sveltekitRateLimit(
     onDeny,
     paths,
     excludePaths,
-  } = config
+  } = resolved
 
   return async ({ event, resolve }): Promise<Response> => {
     const pathname = event.url.pathname

@@ -1,18 +1,18 @@
 import { createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/astro'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
-const middleware = astroRateLimit({
+const middleware = rateLimit({
   limiter,
   skipPaths: ['/health'],
   key: () => 'test-key',
 })
 
 // Strict login middleware
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginMiddleware = astroRateLimit({
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginMiddleware = rateLimit({
   limiter: loginLimiter,
   key: () => 'test-key',
 })

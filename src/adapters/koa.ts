@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Koa Types ───────────────────────────────────────────────────────────────
 
@@ -40,6 +41,15 @@ export interface KoaAdapterConfig {
   statusCode?: number | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: KoaAdapterConfig | string): KoaAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
@@ -47,16 +57,16 @@ export interface KoaAdapterConfig {
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { koaRateLimit } from 'throtto/adapters/koa'
+ * import { rateLimit } from 'throtto/adapters/koa'
  *
- * const limiter = rateLimit('100/minute')
- * app.use(koaRateLimit({ limiter }))
+ * app.use(rateLimit('100/minute'))
  * ```
  */
-export function koaRateLimit(
-  config: KoaAdapterConfig,
+export function rateLimit(
+  config: KoaAdapterConfig | string,
 ): (ctx: KoaContext, next: KoaNext) => Promise<void> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -68,7 +78,7 @@ export function koaRateLimit(
     skipMethods,
     onDeny,
     statusCode = 429,
-  } = config
+  } = resolved
 
   return async (ctx: KoaContext, next: KoaNext): Promise<void> => {
     if (skipPaths || skipMethods) {

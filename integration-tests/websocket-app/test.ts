@@ -1,5 +1,5 @@
-import { rateLimit } from '@tzezar/throtto'
-import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/websocket'
 
 let passed = 0
 let failed = 0
@@ -17,9 +17,9 @@ function assert(name: string, condition: boolean) {
 async function run() {
   console.log('\n🧪 WebSocket Integration Tests\n')
 
-  const limiter = rateLimit({ limit: 3, window: '1m' })
+  const limiter = createLimiter({ limit: 3, window: '1m' })
 
-  const wsLimiter = createWebSocketLimiter({
+  const wsLimiter = rateLimit({
     limiter,
     key: (info) => info.id ?? info.remoteAddress ?? 'unknown',
   })
@@ -38,8 +38,8 @@ async function run() {
 
   // Test 2: Message checks (separate limiter)
   console.log('\nMessage rate limit:')
-  const msgLimiter = createWebSocketLimiter({
-    limiter: rateLimit({ limit: 2, window: '1m' }),
+  const msgLimiter = rateLimit({
+    limiter: createLimiter({ limit: 2, window: '1m' }),
     key: (info) => `msg:${info.id}`,
   })
 

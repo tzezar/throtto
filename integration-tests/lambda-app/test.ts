@@ -1,5 +1,5 @@
-import { rateLimit } from '@tzezar/throtto'
-import { lambdaRateLimitCheck, withLambdaRateLimit } from '@tzezar/throtto/adapters/lambda'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/lambda'
 
 let passed = 0
 let failed = 0
@@ -33,9 +33,9 @@ async function run() {
 
   // Test 1: withLambdaRateLimit wrapper
   console.log('withLambdaRateLimit (3/minute):')
-  const limiter = rateLimit({ limit: 3, window: '1m' })
+  const limiter = createLimiter({ limit: 3, window: '1m' })
 
-  const handler = withLambdaRateLimit(
+  const handler = rateLimit(
     {
       limiter,
       key: () => 'test-key',
@@ -66,18 +66,19 @@ async function run() {
   const deniedHeaders = denied.headers
   assert('429 has headers', Object.keys(deniedHeaders).length > 0)
 
-  // Test 4: lambdaRateLimitCheck standalone
-  console.log('\nlambdaRateLimitCheck (standalone):')
-  const checkLimiter = rateLimit({ limit: 2, window: '1m' })
+  // Test 4: rateLimit check-only form (standalone)
+  console.log('\nrateLimit check-only (standalone):')
+  const checkLimiter = createLimiter({ limit: 2, window: '1m' })
   const config = { limiter: checkLimiter, key: () => 'check-key' }
+  const check = rateLimit(config)
 
-  const check1 = await lambdaRateLimitCheck(config, createEvent('/api/data'))
+  const check1 = await check(createEvent('/api/data'))
   assert('Check 1 returns null (allowed)', check1 === null)
 
-  const check2 = await lambdaRateLimitCheck(config, createEvent('/api/data'))
+  const check2 = await check(createEvent('/api/data'))
   assert('Check 2 returns null (allowed)', check2 === null)
 
-  const check3 = await lambdaRateLimitCheck(config, createEvent('/api/data'))
+  const check3 = await check(createEvent('/api/data'))
   assert('Check 3 returns result (denied)', check3 !== null && check3.statusCode === 429)
 
   console.log(`\n📊 Results: ${passed} passed, ${failed} failed\n`)

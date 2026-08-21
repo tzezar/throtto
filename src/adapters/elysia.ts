@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Elysia Types ────────────────────────────────────────────────────────────
 
@@ -32,6 +33,15 @@ export interface ElysiaAdapterConfig {
     | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: ElysiaAdapterConfig | string): ElysiaAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
 /**
@@ -39,16 +49,17 @@ export interface ElysiaAdapterConfig {
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { elysiaRateLimit } from 'throtto/adapters/elysia'
+ * import { rateLimit } from 'throtto/adapters/elysia'
  *
  * const app = new Elysia()
- *   .onBeforeHandle(elysiaRateLimit({ limiter: rateLimit('100/minute') }))
+ *   .onBeforeHandle(rateLimit('100/minute'))
  * ```
  */
-export function elysiaRateLimit(
-  config: ElysiaAdapterConfig,
+export function rateLimit(
+  config: ElysiaAdapterConfig | string,
 ): (ctx: ElysiaContext) => Promise<Response | undefined> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -59,7 +70,7 @@ export function elysiaRateLimit(
     skipPaths,
     skipMethods,
     onDeny,
-  } = config
+  } = resolved
 
   return async (ctx: ElysiaContext): Promise<Response | undefined> => {
     if (skipPaths || skipMethods) {

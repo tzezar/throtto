@@ -1,16 +1,16 @@
 import { createServer } from 'node:http'
-import { pipe, rateLimit, withDryRun } from '@tzezar/throtto'
-import { createHttpRateLimiter } from '@tzezar/throtto/adapters/http'
+import { rateLimit as createLimiter, pipe, withDryRun } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/http'
 
 // Standard rate limiter
-const rl = createHttpRateLimiter({
-  limiter: rateLimit('10/minute'),
+const rl = rateLimit({
+  limiter: createLimiter('10/minute'),
   skipPaths: ['/health', '/dry-run'],
 })
 
 // Dry-run limiter (logs but doesn't enforce)
-const dryRunLimiter = pipe(rateLimit('5/minute'), withDryRun())
-const dryRl = createHttpRateLimiter({ limiter: dryRunLimiter })
+const dryRunLimiter = pipe(createLimiter('5/minute'), withDryRun())
+const dryRl = rateLimit({ limiter: dryRunLimiter })
 
 const server = createServer(async (req, res) => {
   // Convert Node request to standard Request

@@ -3,7 +3,7 @@ import type { Duration, Limiter, RateLimitResult, Store } from '../core/types.js
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
-import { rateLimit } from '../limiter/presets.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Fastify Types ───────────────────────────────────────────────────────────
 // Minimal types compatible with Fastify
@@ -72,131 +72,56 @@ export interface FastifyAdapterConfig {
   statusCode?: number | undefined
 }
 
-// ─── Plugin ──────────────────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
 
-/**
- * Creates a Fastify rate limit plugin.
- * Skips Fastify encapsulation so the hook applies globally.
- *
- * Usage:
- * ```ts
- * import { rateLimit } from '@tzezar/throtto'
- * import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
- *
- * const limiter = rateLimit('100/minute')
- * await fastify.register(fastifyRateLimit({ limiter }))
- * ```
- */
-export function fastifyRateLimit(config: FastifyAdapterConfig): (fastify: FastifyInstance) => void {
-  if (!config.limiter && config.limit === undefined) {
-    throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
+function resolveConfig(input: FastifyAdapterConfig | string): FastifyAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
   }
-
-  if (!config.limiter && config.limit !== undefined && config.window === undefined) {
-    throw new ConfigError(
-      "'window' is required when using inline rate limit config. Example: { limit: 100, window: '1m' }",
-    )
-  }
-
-  const resolvedLimiter =
-    config.limiter ??
-    rateLimit({
-      limit: config.limit!,
-      window: config.window!,
-      algorithm: config.algorithm,
-      store: config.store,
-    })
-
-  const {
-    key: keyResolver,
-    cost,
-    headers: includeHeaders = true,
-    headerFormat = 'draft-7',
-    skip,
-    skipPaths,
-    skipMethods,
-    onDeny,
-    statusCode = 429,
-  } = config
-
-  const plugin = (fastify: FastifyInstance): void => {
-    fastify.addHook(
-      'onRequest',
-      async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-        if (skipPaths || skipMethods) {
-          const path = request.url.split('?')[0] || '/'
-          if (shouldSkip(path, request.method, { skipPaths, skipMethods })) return
-        }
-
-        if (skip?.(request)) return
-
-        const resolvedKey = keyResolver ? keyResolver(request) : request.ip
-        const resolvedCost = typeof cost === 'function' ? cost(request) : cost
-
-        const result = await resolvedLimiter.check(resolvedKey, { cost: resolvedCost })
-
-        // Set headers
-        if (includeHeaders) {
-          const rateLimitHeaders = toHeaders(result, { format: headerFormat })
-          reply.headers(rateLimitHeaders)
-        }
-
-        if (result.allowed) {
-          // Expose result to downstream handlers
-          ;(request as unknown as Record<string, unknown>).rateLimitResult = result
-          return
-        }
-
-        // Denied
-        if (onDeny) {
-          onDeny(request, reply, result)
-          return
-        }
-
-        const body = toErrorBody(result)
-        reply.code(statusCode).send(body)
-      },
-    )
-  }
-
-  // Skip Fastify encapsulation so the hook applies globally.
-  // This is equivalent to wrapping with fastify-plugin but without the dependency.
-  ;(plugin as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true
-
-  return plugin
+  return input
 }
 
+// ─── Middleware ──────────────────────────────────────────────────────────────
+
 /**
- * Route-level rate limiting for Fastify.
- * Use this as a preHandler for specific routes.
+ * Creates a Fastify route-level rate limit handler (preHandler).
  *
  * Usage:
  * ```ts
+ * import { rateLimit } from 'throtto/adapters/fastify'
+ *
  * fastify.get('/api/search', {
- *   preHandler: fastifyRouteRateLimit({ limiter })
+ *   preHandler: rateLimit('100/minute')
+ * }, handler)
+ *
+ * // Or with full config:
+ * fastify.get('/api/search', {
+ *   preHandler: rateLimit({ limiter, key: (req) => req.ip })
  * }, handler)
  * ```
  */
-export function fastifyRouteRateLimit(
-  config: FastifyAdapterConfig,
+export function rateLimit(
+  config: FastifyAdapterConfig | string,
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
-  if (!config.limiter && config.limit === undefined) {
+  const resolved = resolveConfig(config)
+
+  if (!resolved.limiter && resolved.limit === undefined) {
     throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
   }
 
-  if (!config.limiter && config.limit !== undefined && config.window === undefined) {
+  if (!resolved.limiter && resolved.limit !== undefined && resolved.window === undefined) {
     throw new ConfigError(
       "'window' is required when using inline rate limit config. Example: { limit: 100, window: '1m' }",
     )
   }
 
   const resolvedLimiter =
-    config.limiter ??
-    rateLimit({
-      limit: config.limit!,
-      window: config.window!,
-      algorithm: config.algorithm,
-      store: config.store,
+    resolved.limiter ??
+    createInternalLimiter({
+      limit: resolved.limit!,
+      window: resolved.window!,
+      algorithm: resolved.algorithm,
+      store: resolved.store,
     })
 
   const {
@@ -209,7 +134,7 @@ export function fastifyRouteRateLimit(
     skipMethods,
     onDeny,
     statusCode = 429,
-  } = config
+  } = resolved
 
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
     if (skipPaths || skipMethods) {

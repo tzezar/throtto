@@ -1,11 +1,11 @@
 import { createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/remix'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
 // Simulate a Remix loader with rate limiting
-const indexLoader = withRemixRateLimit(
+const indexLoader = rateLimit(
   {
     limiter,
     key: () => 'test-key',
@@ -18,8 +18,8 @@ const indexLoader = withRemixRateLimit(
 )
 
 // Strict login action
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginAction = withRemixRateLimit(
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginAction = rateLimit(
   {
     limiter: loginLimiter,
     key: () => 'test-key',

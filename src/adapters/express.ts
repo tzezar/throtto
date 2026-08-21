@@ -3,7 +3,7 @@ import type { Duration, Limiter, RateLimitResult, Store } from '../core/types.js
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
-import { rateLimit } from '../limiter/presets.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Express Types ───────────────────────────────────────────────────────────
 // Minimal types compatible with Express req/res/next
@@ -71,6 +71,15 @@ export interface ExpressAdapterConfig {
   message?: string | ((result: RateLimitResult) => unknown) | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: ExpressAdapterConfig | string): ExpressAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
@@ -78,33 +87,34 @@ export interface ExpressAdapterConfig {
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { expressRateLimit } from 'throtto/adapters/express'
+ * import { rateLimit } from 'throtto/adapters/express'
  *
- * const limiter = rateLimit('100/minute')
- * app.use(expressRateLimit({ limiter }))
+ * app.use(rateLimit('100/minute'))
+ * app.use(rateLimit({ limiter, key: (req) => req.ip ?? 'unknown' }))
  * ```
  */
-export function expressRateLimit(
-  config: ExpressAdapterConfig,
+export function rateLimit(
+  config: ExpressAdapterConfig | string,
 ): (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction) => void {
-  if (!config.limiter && config.limit === undefined) {
+  const resolved = resolveConfig(config)
+
+  if (!resolved.limiter && resolved.limit === undefined) {
     throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
   }
 
-  if (!config.limiter && config.limit !== undefined && config.window === undefined) {
+  if (!resolved.limiter && resolved.limit !== undefined && resolved.window === undefined) {
     throw new ConfigError(
       "'window' is required when using inline rate limit config. Example: { limit: 100, window: '1m' }",
     )
   }
 
   const resolvedLimiter =
-    config.limiter ??
-    rateLimit({
-      limit: config.limit!,
-      window: config.window!,
-      algorithm: config.algorithm,
-      store: config.store,
+    resolved.limiter ??
+    createInternalLimiter({
+      limit: resolved.limit!,
+      window: resolved.window!,
+      algorithm: resolved.algorithm,
+      store: resolved.store,
     })
 
   const {
@@ -118,7 +128,7 @@ export function expressRateLimit(
     onDeny,
     statusCode = 429,
     message,
-  } = config
+  } = resolved
 
   return (req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): void => {
     if (skipPaths || skipMethods) {

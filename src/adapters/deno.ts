@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Deno Types ──────────────────────────────────────────────────────────────
 
@@ -25,23 +26,61 @@ export interface DenoAdapterConfig {
   onDeny?: ((req: Request, result: RateLimitResult) => Response | undefined | null) | undefined
 }
 
-// ─── Handler Wrapper ─────────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: DenoAdapterConfig | string): DenoAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 /**
- * Creates a Deno.serve handler with rate limiting.
+ * Creates a Deno.serve rate limit handler.
  *
- * Usage:
+ * Overload 1 — check-only (returns `Response | null`):
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { denoRateLimit, withDenoRateLimit } from 'throtto/adapters/deno'
+ * import { rateLimit } from 'throtto/adapters/deno'
  *
- * Deno.serve(withDenoRateLimit(
- *   { limiter: rateLimit('100/minute') },
- *   (req) => new Response('Hello Deno!')
- * ))
+ * const check = rateLimit('100/minute')
+ * Deno.serve(async (req, info) => {
+ *   const denied = await check(req, info)
+ *   if (denied) return denied
+ *   return new Response('Hello Deno!')
+ * })
+ * ```
+ *
+ * Overload 2 — wraps a handler:
+ * ```ts
+ * Deno.serve(rateLimit({ limiter }, (req, info) => new Response('Hello!')))
  * ```
  */
-export function denoRateLimit(
+export function rateLimit(
+  config: DenoAdapterConfig | string,
+): (req: Request, info: DenoServeHandlerInfo) => Promise<Response | null>
+export function rateLimit(
+  config: DenoAdapterConfig | string,
+  handler: (req: Request, info: DenoServeHandlerInfo) => Response | Promise<Response>,
+): (req: Request, info: DenoServeHandlerInfo) => Promise<Response>
+export function rateLimit(
+  config: DenoAdapterConfig | string,
+  handler?: (req: Request, info: DenoServeHandlerInfo) => Response | Promise<Response>,
+):
+  | ((req: Request, info: DenoServeHandlerInfo) => Promise<Response | null>)
+  | ((req: Request, info: DenoServeHandlerInfo) => Promise<Response>) {
+  const resolved = resolveConfig(config)
+
+  if (handler) {
+    return createHandlerWrapper(resolved, handler)
+  }
+  return createCheckOnly(resolved)
+}
+
+// ─── Check-Only Form ─────────────────────────────────────────────────────────
+
+function createCheckOnly(
   config: DenoAdapterConfig,
 ): (req: Request, info: DenoServeHandlerInfo) => Promise<Response | null> {
   const {
@@ -89,14 +128,13 @@ export function denoRateLimit(
   }
 }
 
-/**
- * Wraps a Deno serve handler with rate limiting.
- */
-export function withDenoRateLimit(
+// ─── Handler Wrapper Form ────────────────────────────────────────────────────
+
+function createHandlerWrapper(
   config: DenoAdapterConfig,
   handler: (req: Request, info: DenoServeHandlerInfo) => Response | Promise<Response>,
 ): (req: Request, info: DenoServeHandlerInfo) => Promise<Response> {
-  const check = denoRateLimit(config)
+  const check = createCheckOnly(config)
 
   return async (req: Request, info: DenoServeHandlerInfo): Promise<Response> => {
     const denied = await check(req, info)

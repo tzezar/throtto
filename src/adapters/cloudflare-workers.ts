@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Cloudflare Workers Types ────────────────────────────────────────────────
 
@@ -26,27 +27,120 @@ export interface CloudflareAdapterConfig {
   onDeny?: ((req: Request, result: RateLimitResult) => Response | undefined | null) | undefined
 }
 
-// ─── Handler Wrapper ─────────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: CloudflareAdapterConfig | string): CloudflareAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 /**
- * Wraps a Cloudflare Workers fetch handler with rate limiting.
+ * Creates a Cloudflare Workers rate limit handler.
  *
- * Usage:
+ * Overload 1 — check-only (returns `Response | null`):
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { withCFRateLimit } from 'throtto/adapters/cloudflare-workers'
+ * import { rateLimit } from 'throtto/adapters/cloudflare-workers'
  *
+ * const check = rateLimit('1000/minute')
  * export default {
- *   fetch: withCFRateLimit(
- *     { limiter: rateLimit('1000/minute') },
- *     async (request, env, ctx) => {
- *       return new Response('Hello!')
- *     }
- *   )
+ *   async fetch(request, env, ctx) {
+ *     const denied = await check(request, env, ctx)
+ *     if (denied) return denied
+ *     return new Response('Hello!')
+ *   }
+ * }
+ * ```
+ *
+ * Overload 2 — wraps a handler:
+ * ```ts
+ * export default {
+ *   fetch: rateLimit({ limiter }, async (request, env, ctx) => {
+ *     return new Response('Hello!')
+ *   })
  * }
  * ```
  */
-export function withCFRateLimit(
+export function rateLimit(
+  config: CloudflareAdapterConfig | string,
+): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response | null>
+export function rateLimit(
+  config: CloudflareAdapterConfig | string,
+  handler: (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>,
+): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>
+export function rateLimit(
+  config: CloudflareAdapterConfig | string,
+  handler?: (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>,
+):
+  | ((request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response | null>)
+  | ((request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>) {
+  const resolved = resolveConfig(config)
+
+  if (handler) {
+    return createHandlerWrapper(resolved, handler)
+  }
+  return createCheckOnly(resolved)
+}
+
+// ─── Check-Only Form ─────────────────────────────────────────────────────────
+
+function createCheckOnly(
+  config: CloudflareAdapterConfig,
+): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response | null> {
+  const {
+    limiter,
+    key: keyResolver,
+    cost,
+    headers: includeHeaders = true,
+    headerFormat = 'draft-7',
+    skip,
+    skipPaths,
+    skipMethods,
+    onDeny,
+  } = config
+
+  return async (
+    request: Request,
+    _env: unknown,
+    _ctx: CFExecutionContext,
+  ): Promise<Response | null> => {
+    if (skipPaths || skipMethods) {
+      const url = new URL(request.url)
+      if (shouldSkip(url.pathname, request.method, { skipPaths, skipMethods })) return null
+    }
+
+    if (skip?.(request)) return null
+
+    const resolvedKey = keyResolver ? keyResolver(request) : extractCFIp(request)
+    const resolvedCost = typeof cost === 'function' ? cost(request) : cost
+
+    const result = await limiter.check(resolvedKey, { cost: resolvedCost })
+
+    if (result.allowed) return null
+
+    if (onDeny) {
+      const custom = onDeny(request, result)
+      if (custom) return custom
+    }
+
+    const body = toErrorBody(result)
+    const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
+    if (includeHeaders) {
+      const rateLimitHeaders = toHeaders(result, { format: headerFormat })
+      for (const [name, value] of Object.entries(rateLimitHeaders)) {
+        responseHeaders.set(name, value)
+      }
+    }
+    return new Response(JSON.stringify(body), { status: 429, headers: responseHeaders })
+  }
+}
+
+// ─── Handler Wrapper Form ────────────────────────────────────────────────────
+
+function createHandlerWrapper(
   config: CloudflareAdapterConfig,
   handler: (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>,
 ): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response> {
@@ -119,6 +213,8 @@ export function withCFRateLimit(
     return response
   }
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function extractCFIp(request: Request): string {
   // cf-connecting-ip is always set by Cloudflare

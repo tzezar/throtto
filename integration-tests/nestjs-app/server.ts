@@ -1,18 +1,18 @@
 import { type IncomingMessage, type ServerResponse, createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { createThrottleGuard } from '@tzezar/throtto/adapters/nestjs'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/nestjs'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
-const guard = createThrottleGuard({
+const guard = rateLimit({
   limiter,
   skipPaths: ['/health'],
   key: () => 'test-key',
 })
 
 // Login guard with strict limits
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginGuard = createThrottleGuard({
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginGuard = rateLimit({
   limiter: loginLimiter,
   key: () => 'test-key',
 })
@@ -69,9 +69,9 @@ const server = createServer(async (req, res) => {
 
   let allowed: boolean
   if (url.pathname === '/api/login' && req.method === 'POST') {
-    allowed = await loginGuard(context)
+    allowed = await loginGuard.canActivate(context)
   } else {
-    allowed = await guard(context)
+    allowed = await guard.canActivate(context)
   }
 
   // Apply headers set by the guard

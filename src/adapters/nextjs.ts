@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Next.js Types ───────────────────────────────────────────────────────────
 // Minimal interfaces compatible with Next.js
@@ -41,27 +42,61 @@ export interface NextAdapterConfig {
   skipMethods?: string[] | undefined
 }
 
-// ─── Middleware Handler ──────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: NextAdapterConfig | string): NextAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
- * Creates a Next.js middleware-compatible rate limit handler.
+ * Creates a Next.js rate limit handler.
  *
- * Usage in middleware.ts:
+ * Overload 1 — check-only (for middleware.ts):
  * ```ts
- * import { rateLimit, memoryStore } from 'throtto'
- * import { nextRateLimit } from 'throtto/adapters/nextjs'
+ * import { rateLimit } from 'throtto/adapters/nextjs'
  *
- * const limiter = rateLimit('100/minute')
- * const rateLimitMiddleware = nextRateLimit({ limiter, paths: ['/api/*'] })
- *
+ * const check = rateLimit('100/minute')
  * export async function middleware(request: NextRequest) {
- *   const response = await rateLimitMiddleware(request)
+ *   const response = await check(request)
  *   if (response) return response // 429
  *   return NextResponse.next()
  * }
  * ```
+ *
+ * Overload 2 — wraps a handler (for App Router API routes):
+ * ```ts
+ * export const GET = rateLimit({ limiter }, async (request) => {
+ *   return Response.json({ data: '...' })
+ * })
+ * ```
  */
-export function nextRateLimit(
+export function rateLimit(
+  config: NextAdapterConfig | string,
+): (req: NextRequest) => Promise<Response | null>
+export function rateLimit(
+  config: NextAdapterConfig | string,
+  handler: (req: Request) => Promise<Response> | Response,
+): (req: Request) => Promise<Response>
+export function rateLimit(
+  config: NextAdapterConfig | string,
+  handler?: (req: Request) => Promise<Response> | Response,
+): ((req: NextRequest) => Promise<Response | null>) | ((req: Request) => Promise<Response>) {
+  const resolved = resolveConfig(config)
+
+  if (handler) {
+    return createHandlerWrapper(resolved, handler)
+  }
+  return createCheckOnly(resolved)
+}
+
+// ─── Check-Only Form ─────────────────────────────────────────────────────────
+
+function createCheckOnly(
   config: NextAdapterConfig,
 ): (req: NextRequest) => Promise<Response | null> {
   const {
@@ -95,7 +130,6 @@ export function nextRateLimit(
     const result = await limiter.check(resolvedKey, { cost: resolvedCost })
 
     if (result.allowed) {
-      // Return null - caller proceeds with NextResponse.next() and can add headers
       return null
     }
 
@@ -115,19 +149,9 @@ export function nextRateLimit(
   }
 }
 
-/**
- * Wraps a Next.js API route handler (App Router) with rate limiting.
- *
- * Usage in app/api/route.ts:
- * ```ts
- * import { withRateLimit } from 'throtto/adapters/nextjs'
- *
- * export const GET = withRateLimit({ limiter }, async (request) => {
- *   return Response.json({ data: '...' })
- * })
- * ```
- */
-export function withRateLimit(
+// ─── Handler Wrapper Form ────────────────────────────────────────────────────
+
+function createHandlerWrapper(
   config: NextAdapterConfig,
   handler: (req: Request) => Promise<Response> | Response,
 ): (req: Request) => Promise<Response> {

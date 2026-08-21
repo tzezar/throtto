@@ -1,5 +1,5 @@
-import { rateLimit } from '@tzezar/throtto'
-import { elysiaRateLimit } from '@tzezar/throtto/adapters/elysia'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/elysia'
 
 let passed = 0
 let failed = 0
@@ -25,8 +25,8 @@ function createCtx(path: string, method = 'GET'): any {
 async function run() {
   console.log('\n🧪 Elysia Integration Tests\n')
 
-  const limiter = rateLimit({ limit: 5, window: '1m' })
-  const middleware = elysiaRateLimit({
+  const limiter = createLimiter({ limit: 5, window: '1m' })
+  const middleware = rateLimit({
     limiter,
     skipPaths: ['/health'],
     key: () => 'test-key',
@@ -55,8 +55,8 @@ async function run() {
 
   // Test 4: Different key
   console.log('\nDifferent keys:')
-  const otherMiddleware = elysiaRateLimit({
-    limiter: rateLimit({ limit: 2, window: '1m' }),
+  const otherMiddleware = rateLimit({
+    limiter: createLimiter({ limit: 2, window: '1m' }),
     key: () => 'other-key',
   })
   const r1 = await otherMiddleware(createCtx('/'))
@@ -68,8 +68,8 @@ async function run() {
 
   // Test 5: Login strict limit
   console.log('\nLogin endpoint (3/15m):')
-  const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-  const loginMiddleware = elysiaRateLimit({
+  const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+  const loginMiddleware = rateLimit({
     limiter: loginLimiter,
     key: () => 'login-key',
   })

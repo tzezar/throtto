@@ -150,9 +150,9 @@ if (result.allowed) {
 ### With Express (inline config)
 
 ```ts
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
 
-app.use(expressRateLimit({
+app.use(rateLimit({
   limit: 100,
   window: '1m',
   skipPaths: ['/health', '/metrics'],
@@ -361,55 +361,46 @@ npx @tzezar/throtto schema --store sqlite --format prisma
 Every adapter returns the appropriate middleware type for its framework. Supports `skipPaths`, `skipMethods`, and custom key resolvers.
 
 ```ts
-// Express / Fastify / Hono - support inline config (no separate limiter needed)
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
-import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
-import { honoRateLimit } from '@tzezar/throtto/adapters/hono'
-
-// All other adapters
-import { nextRateLimit, withRateLimit } from '@tzezar/throtto/adapters/nextjs'
-import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
-import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
-import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
-import { createThrottleGuard } from '@tzezar/throtto/adapters/nestjs'
-import { elysiaRateLimit } from '@tzezar/throtto/adapters/elysia'
-import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
-import { trpcRateLimit } from '@tzezar/throtto/adapters/trpc'
-import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
-import { koaRateLimit } from '@tzezar/throtto/adapters/koa'
-import { withLambdaRateLimit } from '@tzezar/throtto/adapters/lambda'
-import { withCFRateLimit } from '@tzezar/throtto/adapters/cloudflare-workers'
-import { bunRateLimit } from '@tzezar/throtto/adapters/bun'
-import { denoRateLimit } from '@tzezar/throtto/adapters/deno'
-import { createHttpRateLimiter } from '@tzezar/throtto/adapters/http'
+// All adapters export rateLimit
+import { rateLimit } from '@tzezar/throtto/adapters/express'
+import { rateLimit } from '@tzezar/throtto/adapters/fastify'
+import { rateLimit } from '@tzezar/throtto/adapters/hono'
+import { rateLimit } from '@tzezar/throtto/adapters/nextjs'
+import { rateLimit } from '@tzezar/throtto/adapters/sveltekit'
+import { rateLimit } from '@tzezar/throtto/adapters/remix'
+import { rateLimit } from '@tzezar/throtto/adapters/astro'
+import { rateLimit } from '@tzezar/throtto/adapters/nestjs'
+import { rateLimit } from '@tzezar/throtto/adapters/elysia'
+import { rateLimit } from '@tzezar/throtto/adapters/h3'
+import { rateLimit } from '@tzezar/throtto/adapters/trpc'
+import { rateLimit } from '@tzezar/throtto/adapters/websocket'
+import { rateLimit } from '@tzezar/throtto/adapters/koa'
+import { rateLimit } from '@tzezar/throtto/adapters/lambda'
+import { rateLimit } from '@tzezar/throtto/adapters/cloudflare-workers'
+import { rateLimit } from '@tzezar/throtto/adapters/bun'
+import { rateLimit } from '@tzezar/throtto/adapters/deno'
+import { rateLimit } from '@tzezar/throtto/adapters/http'
 ```
+
+> Every adapter exports `rateLimit` — the import path tells you which framework. For composition with `pipe()` and wrappers, use `createLimiter` from core to avoid name collision.
 
 ### Usage examples
 
 ```ts
 // Express - inline (simplest)
-app.use(expressRateLimit({ limit: 100, window: '1m' }))
-
-// Express - with a pre-built limiter
-app.use(expressRateLimit({
-  limiter,
-  skipPaths: ['/health'],
-  skipMethods: ['OPTIONS'],
-}))
+app.use(rateLimit('100/minute'))
 
 // Hono
-app.use('*', honoRateLimit({ limit: 100, window: '1m' }))
+app.use('*', rateLimit('100/minute'))
 
 // Next.js (middleware.ts)
-const rl = nextRateLimit({ limiter })
+const check = rateLimit({ limit: 100, window: '1m' })
 
 // SvelteKit (hooks.server.ts)
-export const handle = sveltekitRateLimit({ limiter })
+export const handle = rateLimit({ limit: 100, window: '1m' })
 
-// Lambda
-export const handler = withLambdaRateLimit({ limiter }, async (event) => {
-  return { statusCode: 200, body: 'OK' }
-})
+// Lambda (wraps handler)
+export const handler = rateLimit('100/minute', myHandler)
 ```
 
 ### Writing a custom adapter

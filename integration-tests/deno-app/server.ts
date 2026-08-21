@@ -1,16 +1,16 @@
-import { rateLimit } from 'npm:@tzezar/throtto'
-import { denoRateLimit } from 'npm:@tzezar/throtto/adapters/deno'
+import { rateLimit as createLimiter } from 'npm:@tzezar/throtto'
+import { rateLimit } from 'npm:@tzezar/throtto/adapters/deno'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
-const rateLimitCheck = denoRateLimit({
+const rateLimitCheck = rateLimit({
   limiter,
   skipPaths: ['/health'],
   key: () => 'test-key',
 })
 
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginCheck = denoRateLimit({
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginCheck = rateLimit({
   limiter: loginLimiter,
   key: () => 'test-key',
 })

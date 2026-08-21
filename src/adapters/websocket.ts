@@ -37,16 +37,18 @@ export interface WebSocketCheckResult {
 /**
  * Creates a WebSocket rate limit checker.
  *
+ * Note: String presets are NOT supported for WebSocket because `key` is required.
+ *
  * Unlike HTTP adapters, this doesn't send responses - it returns a result
  * that the application decides how to handle (drop message, close connection, etc.)
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { createWebSocketLimiter } from 'throtto/adapters/websocket'
+ * import { rateLimit } from 'throtto/adapters/websocket'
+ * import { rateLimit as createLimiter } from 'throtto'
  *
- * const wsLimiter = createWebSocketLimiter({
- *   limiter: rateLimit('50/second'),
+ * const wsLimiter = rateLimit({
+ *   limiter: createLimiter('50/second'),
  *   key: (info) => info.remoteAddress ?? 'unknown',
  * })
  *
@@ -60,7 +62,7 @@ export interface WebSocketCheckResult {
  * })
  * ```
  */
-export function createWebSocketLimiter(config: WebSocketAdapterConfig): {
+export function rateLimit(config: WebSocketAdapterConfig): {
   /** Check rate limit for a connection attempt */
   checkConnection: (info: WebSocketInfo) => Promise<WebSocketCheckResult>
   /** Check rate limit for an individual message */

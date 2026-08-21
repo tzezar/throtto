@@ -1,5 +1,5 @@
-import { rateLimit } from '@tzezar/throtto'
-import { TrpcRateLimitError, trpcRateLimit } from '@tzezar/throtto/adapters/trpc'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { TrpcRateLimitError, rateLimit } from '@tzezar/throtto/adapters/trpc'
 
 let passed = 0
 let failed = 0
@@ -21,9 +21,9 @@ interface MockCtx {
 async function run() {
   console.log('\n🧪 tRPC Integration Tests\n')
 
-  const limiter = rateLimit({ limit: 3, window: '1m' })
+  const limiter = createLimiter({ limit: 3, window: '1m' })
 
-  const middleware = trpcRateLimit<MockCtx>({
+  const middleware = rateLimit<MockCtx>({
     limiter,
     key: (ctx) => ctx.userId,
   })
@@ -69,8 +69,8 @@ async function run() {
 
   // Test 4: Skip paths
   console.log('\nSkip paths:')
-  const skipMiddleware = trpcRateLimit<MockCtx>({
-    limiter: rateLimit({ limit: 1, window: '1m' }),
+  const skipMiddleware = rateLimit<MockCtx>({
+    limiter: createLimiter({ limit: 1, window: '1m' }),
     key: (ctx) => ctx.userId,
     skip: (_ctx, path) => path === 'healthCheck',
   })

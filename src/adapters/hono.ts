@@ -3,7 +3,7 @@ import type { Duration, Limiter, RateLimitResult, Store } from '../core/types.js
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
-import { rateLimit } from '../limiter/presets.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Hono Types ──────────────────────────────────────────────────────────────
 // Minimal types compatible with Hono's Context
@@ -63,6 +63,15 @@ export interface HonoAdapterConfig {
   onDeny?: ((c: HonoContext, result: RateLimitResult) => Response | undefined | null) | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: HonoAdapterConfig | string): HonoAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
@@ -70,33 +79,34 @@ export interface HonoAdapterConfig {
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { honoRateLimit } from 'throtto/adapters/hono'
+ * import { rateLimit } from 'throtto/adapters/hono'
  *
- * const limiter = rateLimit('100/minute')
- * app.use(honoRateLimit({ limiter }))
+ * app.use(rateLimit('100/minute'))
+ * app.use(rateLimit({ limiter, key: (c) => c.req.header('x-api-key') ?? 'anon' }))
  * ```
  */
-export function honoRateLimit(
-  config: HonoAdapterConfig,
+export function rateLimit(
+  config: HonoAdapterConfig | string,
 ): (c: HonoContext, next: HonoNext) => Promise<Response | undefined> {
-  if (!config.limiter && config.limit === undefined) {
+  const resolved = resolveConfig(config)
+
+  if (!resolved.limiter && resolved.limit === undefined) {
     throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
   }
 
-  if (!config.limiter && config.limit !== undefined && config.window === undefined) {
+  if (!resolved.limiter && resolved.limit !== undefined && resolved.window === undefined) {
     throw new ConfigError(
       "'window' is required when using inline rate limit config. Example: { limit: 100, window: '1m' }",
     )
   }
 
   const resolvedLimiter =
-    config.limiter ??
-    rateLimit({
-      limit: config.limit!,
-      window: config.window!,
-      algorithm: config.algorithm,
-      store: config.store,
+    resolved.limiter ??
+    createInternalLimiter({
+      limit: resolved.limit!,
+      window: resolved.window!,
+      algorithm: resolved.algorithm,
+      store: resolved.store,
     })
 
   const {
@@ -108,7 +118,7 @@ export function honoRateLimit(
     skipPaths,
     skipMethods,
     onDeny,
-  } = config
+  } = resolved
 
   return async (c: HonoContext, next: HonoNext): Promise<Response | undefined> => {
     if (skipPaths || skipMethods) {

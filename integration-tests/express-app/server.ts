@@ -1,14 +1,14 @@
-import { pipe, rateLimit, withAllowlist } from '@tzezar/throtto'
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { rateLimit as createLimiter, pipe, withAllowlist } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
 import express from 'express'
 
 const app = express()
 
 // Global rate limit: 10/minute with allowlist
-const globalLimiter = pipe(rateLimit('10/minute'), withAllowlist({ allowlist: ['admin'] }))
+const globalLimiter = pipe(createLimiter('10/minute'), withAllowlist({ allowlist: ['admin'] }))
 
 app.use(
-  expressRateLimit({
+  rateLimit({
     limiter: globalLimiter,
     skipPaths: ['/health'],
     key: (req) => req.ip ?? 'unknown',
@@ -16,12 +16,12 @@ app.use(
 )
 
 // Strict: login endpoint
-app.post('/api/login', expressRateLimit({ limit: 3, window: '15m' }), (req, res) => {
+app.post('/api/login', rateLimit({ limit: 3, window: '15m' }), (req, res) => {
   res.json({ message: 'login endpoint' })
 })
 
 // Loose: data endpoint
-app.get('/api/data', expressRateLimit({ limit: 20, window: '1m' }), (req, res) => {
+app.get('/api/data', rateLimit({ limit: 20, window: '1m' }), (req, res) => {
   res.json({ data: 'here is your data', timestamp: Date.now() })
 })
 

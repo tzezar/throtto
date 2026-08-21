@@ -48,20 +48,22 @@ export class TrpcRateLimitError extends Error {
 /**
  * Creates a tRPC middleware for rate limiting.
  *
+ * Note: String presets are NOT supported for tRPC because `key` is required.
+ *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { trpcRateLimit } from 'throtto/adapters/trpc'
+ * import { rateLimit } from 'throtto/adapters/trpc'
+ * import { rateLimit as createLimiter } from 'throtto'
  *
- * const rateLimitMiddleware = trpcRateLimit({
- *   limiter: rateLimit('100/minute'),
+ * const rateLimitMiddleware = rateLimit({
+ *   limiter: createLimiter('100/minute'),
  *   key: (ctx) => ctx.userId ?? ctx.ip,
  * })
  *
  * const protectedProcedure = t.procedure.use(rateLimitMiddleware)
  * ```
  */
-export function trpcRateLimit<TContext = unknown>(
+export function rateLimit<TContext = unknown>(
   config: TrpcAdapterConfig<TContext>,
 ): (opts: TrpcMiddlewareOptions<TContext>) => Promise<unknown> {
   const {

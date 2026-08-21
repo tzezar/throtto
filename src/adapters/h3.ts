@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── H3 Types ────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,15 @@ export interface H3AdapterConfig {
   onDeny?: ((event: H3Event, result: RateLimitResult) => void) | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: H3AdapterConfig | string): H3AdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 /**
@@ -44,15 +54,16 @@ export interface H3AdapterConfig {
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { h3RateLimit } from 'throtto/adapters/h3'
+ * import { rateLimit } from 'throtto/adapters/h3'
  *
- * export default defineEventHandler(h3RateLimit({ limiter: rateLimit('100/minute') }))
+ * export default defineEventHandler(rateLimit('100/minute'))
  * ```
  */
-export function h3RateLimit(
-  config: H3AdapterConfig,
+export function rateLimit(
+  config: H3AdapterConfig | string,
 ): (event: H3Event) => Promise<undefined | string> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -63,7 +74,7 @@ export function h3RateLimit(
     skipPaths,
     skipMethods,
     onDeny,
-  } = config
+  } = resolved
 
   return async (event: H3Event): Promise<undefined | string> => {
     if (skipPaths || skipMethods) {

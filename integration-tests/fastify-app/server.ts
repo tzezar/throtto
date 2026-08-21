@@ -1,11 +1,15 @@
-import { createTieredLimiter, rateLimit, slidingWindowCounter } from '@tzezar/throtto'
-import { fastifyRouteRateLimit } from '@tzezar/throtto/adapters/fastify'
+import {
+  rateLimit as createLimiter,
+  createTieredLimiter,
+  slidingWindowCounter,
+} from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/fastify'
 import Fastify from 'fastify'
 
 const app = Fastify({ logger: false })
 
 // Global rate limit as onRequest hook
-const globalHook = fastifyRouteRateLimit({
+const globalHook = rateLimit({
   limit: 10,
   window: '1m',
   skipPaths: ['/health'],
@@ -27,7 +31,7 @@ app.get('/health', async () => ({ status: 'ok' }))
 app.route({
   method: 'GET',
   url: '/api/data',
-  onRequest: fastifyRouteRateLimit({
+  onRequest: rateLimit({
     limiter: tieredLimiter,
     key: (request) => (request.headers['x-api-key'] as string) ?? 'free:anonymous',
   }),

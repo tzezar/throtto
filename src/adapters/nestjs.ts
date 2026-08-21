@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── NestJS Types ────────────────────────────────────────────────────────────
 // Minimal interfaces - users provide the actual NestJS types
@@ -53,29 +54,41 @@ export interface NestThrottleConfig {
   statusCode?: number | undefined
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: NestThrottleConfig | string): NestThrottleConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
 // ─── Guard Factory ───────────────────────────────────────────────────────────
 
 /**
- * Creates a NestJS-compatible guard function for rate limiting.
+ * Creates a NestJS-compatible guard object for rate limiting.
  *
  * Usage in NestJS:
  * ```ts
- * import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common'
- * import { createThrottleGuard } from 'throtto/adapters/nestjs'
+ * import { rateLimit } from 'throtto/adapters/nestjs'
+ *
+ * const guard = rateLimit('100/minute')
  *
  * @Injectable()
  * export class RateLimitGuard implements CanActivate {
- *   private guard = createThrottleGuard({ limiter })
+ *   private guard = rateLimit({ limiter })
  *
  *   canActivate(context: ExecutionContext): Promise<boolean> {
- *     return this.guard(context as any)
+ *     return this.guard.canActivate(context as any)
  *   }
  * }
  * ```
  */
-export function createThrottleGuard(
-  config: NestThrottleConfig,
-): (context: NestExecutionContext) => Promise<boolean> {
+export function rateLimit(config: NestThrottleConfig | string): {
+  canActivate(context: NestExecutionContext): Promise<boolean>
+} {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -87,45 +100,47 @@ export function createThrottleGuard(
     skipMethods,
     onDeny,
     statusCode = 429,
-  } = config
+  } = resolved
 
-  return async (context: NestExecutionContext): Promise<boolean> => {
-    const http = context.switchToHttp()
-    const req = http.getRequest()
-    const res = http.getResponse()
+  return {
+    async canActivate(context: NestExecutionContext): Promise<boolean> {
+      const http = context.switchToHttp()
+      const req = http.getRequest()
+      const res = http.getResponse()
 
-    if (skipPaths || skipMethods) {
-      const path = (req.url ?? '/').split('?')[0] || '/'
-      const method = req.method ?? 'GET'
-      if (shouldSkip(path, method, { skipPaths, skipMethods })) return true
-    }
-
-    if (skip?.(req)) return true
-
-    const resolvedKey = keyResolver ? keyResolver(req) : (req.ip ?? 'unknown')
-    const resolvedCost = typeof cost === 'function' ? cost(req) : cost
-
-    const result = await limiter.check(resolvedKey, { cost: resolvedCost })
-
-    // Set headers
-    if (includeHeaders) {
-      const rateLimitHeaders = toHeaders(result, { format: headerFormat })
-      for (const [name, value] of Object.entries(rateLimitHeaders)) {
-        res.setHeader(name, value)
+      if (skipPaths || skipMethods) {
+        const path = (req.url ?? '/').split('?')[0] || '/'
+        const method = req.method ?? 'GET'
+        if (shouldSkip(path, method, { skipPaths, skipMethods })) return true
       }
-    }
 
-    if (result.allowed) return true
+      if (skip?.(req)) return true
 
-    // Denied
-    if (onDeny) {
-      onDeny(req, res, result)
+      const resolvedKey = keyResolver ? keyResolver(req) : (req.ip ?? 'unknown')
+      const resolvedCost = typeof cost === 'function' ? cost(req) : cost
+
+      const result = await limiter.check(resolvedKey, { cost: resolvedCost })
+
+      // Set headers
+      if (includeHeaders) {
+        const rateLimitHeaders = toHeaders(result, { format: headerFormat })
+        for (const [name, value] of Object.entries(rateLimitHeaders)) {
+          res.setHeader(name, value)
+        }
+      }
+
+      if (result.allowed) return true
+
+      // Denied
+      if (onDeny) {
+        onDeny(req, res, result)
+        return false
+      }
+
+      const body = toErrorBody(result)
+      res.status(statusCode).json(body)
       return false
-    }
-
-    const body = toErrorBody(result)
-    res.status(statusCode).json(body)
-    return false
+    },
   }
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { expressRateLimit } from '../../src/adapters/express.js'
+import { rateLimit as expressRateLimit } from '../../src/adapters/express.js'
 import type {
   ExpressNextFunction,
   ExpressRequest,

@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Lambda Types ────────────────────────────────────────────────────────────
 
@@ -38,30 +39,108 @@ export interface LambdaAdapterConfig {
   skip?: ((event: APIGatewayEvent) => boolean) | undefined
 }
 
-// ─── Handler Wrapper ─────────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: LambdaAdapterConfig | string): LambdaAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 /**
- * Wraps an AWS Lambda handler with rate limiting.
- * Supports both API Gateway v1 (REST) and v2 (HTTP) events.
+ * Creates a Lambda rate limit handler.
  *
- * Usage:
+ * Overload 1 — check-only (returns `APIGatewayResult | null`):
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { withLambdaRateLimit } from 'throtto/adapters/lambda'
+ * import { rateLimit } from 'throtto/adapters/lambda'
  *
- * const handler = withLambdaRateLimit(
- *   { limiter: rateLimit('100/minute') },
- *   async (event) => ({
- *     statusCode: 200,
- *     headers: {},
- *     body: JSON.stringify({ ok: true }),
- *   })
- * )
+ * const check = rateLimit('100/minute')
+ * export async function handler(event) {
+ *   const denied = await check(event)
+ *   if (denied) return denied
+ *   return { statusCode: 200, headers: {}, body: '...' }
+ * }
+ * ```
  *
- * export { handler }
+ * Overload 2 — wraps a handler:
+ * ```ts
+ * export const handler = rateLimit({ limiter }, async (event) => ({
+ *   statusCode: 200,
+ *   headers: {},
+ *   body: JSON.stringify({ ok: true }),
+ * }))
  * ```
  */
-export function withLambdaRateLimit(
+export function rateLimit(
+  config: LambdaAdapterConfig | string,
+): (event: APIGatewayEvent) => Promise<APIGatewayResult | null>
+export function rateLimit(
+  config: LambdaAdapterConfig | string,
+  handler: (event: APIGatewayEvent) => Promise<APIGatewayResult>,
+): (event: APIGatewayEvent) => Promise<APIGatewayResult>
+export function rateLimit(
+  config: LambdaAdapterConfig | string,
+  handler?: (event: APIGatewayEvent) => Promise<APIGatewayResult>,
+):
+  | ((event: APIGatewayEvent) => Promise<APIGatewayResult | null>)
+  | ((event: APIGatewayEvent) => Promise<APIGatewayResult>) {
+  const resolved = resolveConfig(config)
+
+  if (handler) {
+    return createHandlerWrapper(resolved, handler)
+  }
+  return createCheckOnly(resolved)
+}
+
+// ─── Check-Only Form ─────────────────────────────────────────────────────────
+
+function createCheckOnly(
+  config: LambdaAdapterConfig,
+): (event: APIGatewayEvent) => Promise<APIGatewayResult | null> {
+  const {
+    limiter,
+    key: keyResolver,
+    cost,
+    headers: includeHeaders = true,
+    headerFormat = 'draft-7',
+    skip,
+    skipPaths,
+    skipMethods,
+  } = config
+
+  return async (event: APIGatewayEvent): Promise<APIGatewayResult | null> => {
+    if (skipPaths || skipMethods) {
+      const path = event.path ?? event.rawPath ?? '/'
+      const method = event.httpMethod ?? 'GET'
+      if (shouldSkip(path, method, { skipPaths, skipMethods })) return null
+    }
+
+    if (skip?.(event)) return null
+
+    const resolvedKey = keyResolver ? keyResolver(event) : extractIp(event)
+    const resolvedCost = typeof cost === 'function' ? cost(event) : cost
+
+    const result = await limiter.check(resolvedKey, { cost: resolvedCost })
+
+    if (result.allowed) return null
+
+    const rateLimitHeaders = includeHeaders ? toHeaders(result, { format: headerFormat }) : {}
+    const body = toErrorBody(result)
+
+    return {
+      statusCode: 429,
+      headers: { 'Content-Type': 'application/json', ...rateLimitHeaders },
+      body: JSON.stringify(body),
+    }
+  }
+}
+
+// ─── Handler Wrapper Form ────────────────────────────────────────────────────
+
+function createHandlerWrapper(
   config: LambdaAdapterConfig,
   handler: (event: APIGatewayEvent) => Promise<APIGatewayResult>,
 ): (event: APIGatewayEvent) => Promise<APIGatewayResult> {
@@ -113,48 +192,7 @@ export function withLambdaRateLimit(
   }
 }
 
-/**
- * Standalone rate limit check for Lambda (use with middy or custom middleware).
- */
-export async function lambdaRateLimitCheck(
-  config: LambdaAdapterConfig,
-  event: APIGatewayEvent,
-): Promise<APIGatewayResult | null> {
-  const {
-    limiter,
-    key: keyResolver,
-    cost,
-    headers: includeHeaders = true,
-    headerFormat = 'draft-7',
-    skip,
-    skipPaths,
-    skipMethods,
-  } = config
-
-  if (skipPaths || skipMethods) {
-    const path = event.path ?? event.rawPath ?? '/'
-    const method = event.httpMethod ?? 'GET'
-    if (shouldSkip(path, method, { skipPaths, skipMethods })) return null
-  }
-
-  if (skip?.(event)) return null
-
-  const resolvedKey = keyResolver ? keyResolver(event) : extractIp(event)
-  const resolvedCost = typeof cost === 'function' ? cost(event) : cost
-
-  const result = await limiter.check(resolvedKey, { cost: resolvedCost })
-
-  if (result.allowed) return null
-
-  const rateLimitHeaders = includeHeaders ? toHeaders(result, { format: headerFormat }) : {}
-  const body = toErrorBody(result)
-
-  return {
-    statusCode: 429,
-    headers: { 'Content-Type': 'application/json', ...rateLimitHeaders },
-    body: JSON.stringify(body),
-  }
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function extractIp(event: APIGatewayEvent): string {
   // API Gateway v2

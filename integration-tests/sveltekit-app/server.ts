@@ -1,18 +1,18 @@
 import { createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/sveltekit'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
-const handle = sveltekitRateLimit({
+const handle = rateLimit({
   limiter,
   skipPaths: ['/health'],
   key: () => 'test-key',
 })
 
 // Strict login limiter
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginHandle = sveltekitRateLimit({
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginHandle = rateLimit({
   limiter: loginLimiter,
   key: () => 'test-key',
 })

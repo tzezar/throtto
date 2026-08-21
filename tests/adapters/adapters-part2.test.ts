@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { elysiaRateLimit } from '../../src/adapters/elysia.js'
-import { h3RateLimit } from '../../src/adapters/h3.js'
-import { koaRateLimit } from '../../src/adapters/koa.js'
-import { withLambdaRateLimit } from '../../src/adapters/lambda.js'
-import { sveltekitRateLimit } from '../../src/adapters/sveltekit.js'
-import { TrpcRateLimitError, trpcRateLimit } from '../../src/adapters/trpc.js'
-import { createWebSocketLimiter } from '../../src/adapters/websocket.js'
+import { rateLimit as elysiaRateLimit } from '../../src/adapters/elysia.js'
+import { rateLimit as h3RateLimit } from '../../src/adapters/h3.js'
+import { rateLimit as koaRateLimit } from '../../src/adapters/koa.js'
+import { rateLimit as lambdaRateLimit } from '../../src/adapters/lambda.js'
+import { rateLimit as sveltekitRateLimit } from '../../src/adapters/sveltekit.js'
+import { TrpcRateLimitError, rateLimit as trpcRateLimit } from '../../src/adapters/trpc.js'
+import { rateLimit as createWebSocketLimiter } from '../../src/adapters/websocket.js'
 import type { Limiter, RateLimitInfo, RateLimitResult } from '../../src/core/types.js'
 
 // ─── Mock Limiter ────────────────────────────────────────────────────────────
@@ -316,7 +316,7 @@ describe('Lambda Adapter', () => {
 
   it('passes through when allowed', async () => {
     const limiter = createMockLimiter({ allowed: true })
-    const handler = withLambdaRateLimit({ limiter }, async () => ({
+    const handler = lambdaRateLimit({ limiter }, async () => ({
       statusCode: 200,
       headers: {},
       body: '{"ok":true}',
@@ -329,7 +329,7 @@ describe('Lambda Adapter', () => {
 
   it('returns 429 when denied', async () => {
     const limiter = createMockLimiter({ allowed: false })
-    const handler = withLambdaRateLimit({ limiter }, async () => ({
+    const handler = lambdaRateLimit({ limiter }, async () => ({
       statusCode: 200,
       headers: {},
       body: '{"ok":true}',
@@ -344,7 +344,7 @@ describe('Lambda Adapter', () => {
 
   it('extracts IP from requestContext', async () => {
     const limiter = createMockLimiter({ allowed: true })
-    const handler = withLambdaRateLimit({ limiter }, async () => ({
+    const handler = lambdaRateLimit({ limiter }, async () => ({
       statusCode: 200,
       headers: {},
       body: '',

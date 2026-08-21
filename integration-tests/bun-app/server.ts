@@ -1,16 +1,16 @@
-import { rateLimit } from '@tzezar/throtto'
-import { bunRateLimit } from '@tzezar/throtto/adapters/bun'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/bun'
 
-const limiter = rateLimit({ limit: 5, window: '1m' })
+const limiter = createLimiter({ limit: 5, window: '1m' })
 
-const rateLimitCheck = bunRateLimit({
+const rateLimitCheck = rateLimit({
   limiter,
   skipPaths: ['/health'],
   key: () => 'test-key',
 })
 
-const loginLimiter = rateLimit({ limit: 3, window: '15m' })
-const loginCheck = bunRateLimit({
+const loginLimiter = createLimiter({ limit: 3, window: '15m' })
+const loginCheck = rateLimit({
   limiter: loginLimiter,
   key: () => 'test-key',
 })

@@ -2,6 +2,7 @@ import type { Limiter, RateLimitResult } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Bun Types ───────────────────────────────────────────────────────────────
 
@@ -25,40 +26,65 @@ export interface BunAdapterConfig {
   onDeny?: ((req: Request, result: RateLimitResult) => Response | undefined | null) | undefined
 }
 
-// ─── Handler Wrapper ─────────────────────────────────────────────────────────
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: BunAdapterConfig | string): BunAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Handler ─────────────────────────────────────────────────────────────────
 
 /**
- * Creates a Bun.serve fetch handler with rate limiting.
+ * Creates a Bun.serve rate limit handler.
  *
- * Usage:
+ * Overload 1 — check-only (returns `Response | null`):
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { bunRateLimit } from 'throtto/adapters/bun'
+ * import { rateLimit } from 'throtto/adapters/bun'
  *
- * const rateLimited = bunRateLimit({
- *   limiter: rateLimit('100/minute'),
- * })
- *
+ * const check = rateLimit('100/minute')
  * Bun.serve({
  *   fetch(req, server) {
- *     const denied = rateLimited(req, server)
+ *     const denied = await check(req, server)
  *     if (denied) return denied
  *     return new Response('OK')
  *   }
  * })
  * ```
  *
- * Or as a wrapper:
+ * Overload 2 — wraps a handler:
  * ```ts
  * Bun.serve({
- *   fetch: withBunRateLimit(
- *     { limiter: rateLimit('100/minute') },
- *     (req) => new Response('OK')
- *   )
+ *   fetch: rateLimit({ limiter }, (req, server) => new Response('OK'))
  * })
  * ```
  */
-export function bunRateLimit(
+export function rateLimit(
+  config: BunAdapterConfig | string,
+): (req: Request, server: BunServer) => Promise<Response | null>
+export function rateLimit(
+  config: BunAdapterConfig | string,
+  handler: (req: Request, server: BunServer) => Response | Promise<Response>,
+): (req: Request, server: BunServer) => Promise<Response>
+export function rateLimit(
+  config: BunAdapterConfig | string,
+  handler?: (req: Request, server: BunServer) => Response | Promise<Response>,
+):
+  | ((req: Request, server: BunServer) => Promise<Response | null>)
+  | ((req: Request, server: BunServer) => Promise<Response>) {
+  const resolved = resolveConfig(config)
+
+  if (handler) {
+    return createHandlerWrapper(resolved, handler)
+  }
+  return createCheckOnly(resolved)
+}
+
+// ─── Check-Only Form ─────────────────────────────────────────────────────────
+
+function createCheckOnly(
   config: BunAdapterConfig,
 ): (req: Request, server: BunServer) => Promise<Response | null> {
   const {
@@ -108,14 +134,13 @@ export function bunRateLimit(
   }
 }
 
-/**
- * Wraps a Bun fetch handler with rate limiting.
- */
-export function withBunRateLimit(
+// ─── Handler Wrapper Form ────────────────────────────────────────────────────
+
+function createHandlerWrapper(
   config: BunAdapterConfig,
   handler: (req: Request, server: BunServer) => Response | Promise<Response>,
 ): (req: Request, server: BunServer) => Promise<Response> {
-  const check = bunRateLimit(config)
+  const check = createCheckOnly(config)
 
   return async (req: Request, server: BunServer): Promise<Response> => {
     const denied = await check(req, server)
@@ -123,6 +148,8 @@ export function withBunRateLimit(
     return handler(req, server)
   }
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function extractIp(req: Request): string {
   const cfIp = req.headers.get('cf-connecting-ip')

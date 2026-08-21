@@ -3,6 +3,7 @@ import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import type { KeyResolver } from '../http/key-resolvers.js'
 import { shouldSkip } from '../http/skip.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ export interface HttpAdapterConfig {
   onDeny?: ((req: Request, result: RateLimitResult) => Response | undefined | null) | undefined
 }
 
-// ─── Adapter ─────────────────────────────────────────────────────────────────
+// ─── Result Type ─────────────────────────────────────────────────────────────
 
 export interface HttpRateLimitResult {
   /** Whether the request is allowed */
@@ -38,15 +39,38 @@ export interface HttpRateLimitResult {
   headers: Record<string, string>
 }
 
+// ─── Resolve Config ──────────────────────────────────────────────────────────
+
+function resolveConfig(input: HttpAdapterConfig | string): HttpAdapterConfig {
+  if (typeof input === 'string') {
+    return { limiter: createInternalLimiter(input) }
+  }
+  return input
+}
+
+// ─── Main Export ─────────────────────────────────────────────────────────────
+
 /**
  * Creates a generic HTTP rate limit handler using the Fetch API.
  * Works with any runtime that supports Request/Response (Deno, Bun, Cloudflare Workers, etc.)
  *
  * Returns null if allowed (proceed with your handler), or a 429 Response if denied.
+ *
+ * Usage:
+ * ```ts
+ * import { rateLimit } from 'throtto/adapters/http'
+ *
+ * const check = rateLimit('100/minute')
+ * // In your handler:
+ * const denied = await check(request)
+ * if (denied) return denied
+ * ```
  */
-export function createHttpRateLimiter(
-  config: HttpAdapterConfig,
+export function rateLimit(
+  config: HttpAdapterConfig | string,
 ): (req: Request) => Promise<Response | null> {
+  const resolved = resolveConfig(config)
+
   const {
     limiter,
     key: keyResolver,
@@ -57,7 +81,7 @@ export function createHttpRateLimiter(
     skipPaths,
     skipMethods,
     onDeny,
-  } = config
+  } = resolved
 
   return async (req: Request): Promise<Response | null> => {
     // Skip check
@@ -102,6 +126,8 @@ export function createHttpRateLimiter(
     })
   }
 }
+
+// ─── Lower-Level Checker ─────────────────────────────────────────────────────
 
 /**
  * Lower-level check that returns the result + headers without creating a Response.

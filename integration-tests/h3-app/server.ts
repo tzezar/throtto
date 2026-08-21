@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
-import { rateLimit } from '@tzezar/throtto'
-import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
+import { rateLimit as createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/h3'
 import { createApp, createRouter, defineEventHandler, toNodeListener } from 'h3'
 
 const app = createApp()
@@ -8,8 +8,8 @@ const router = createRouter()
 
 // Global rate limit middleware
 app.use(
-  h3RateLimit({
-    limiter: rateLimit('10/minute'),
+  rateLimit({
+    limiter: createLimiter('10/minute'),
     skipPaths: ['/health'],
   }),
 )
