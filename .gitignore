@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Coverage
+coverage/
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Legacy removed features
+legacy/
+
+# Lock files (pnpm used)
+package-lock.json
+yarn.lock
+
+# Turborepo
+.turbo
+
+# pnpm auto-generated
+pnpm-workspace.yaml

@@ -1,0 +1,219 @@
+{
+  "name": "@tzezar/throtto",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "1.0.0",
+  "description": "Comprehensive, framework-agnostic TypeScript rate limiting library",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./stores/memory": {
+      "types": "./dist/stores/memory.d.ts",
+      "default": "./dist/stores/memory.js"
+    },
+    "./stores/redis": {
+      "types": "./dist/stores/redis.d.ts",
+      "default": "./dist/stores/redis.js"
+    },
+    "./stores/upstash": {
+      "types": "./dist/stores/upstash.d.ts",
+      "default": "./dist/stores/upstash.js"
+    },
+    "./stores/postgres": {
+      "types": "./dist/stores/postgres.d.ts",
+      "default": "./dist/stores/postgres.js"
+    },
+    "./stores/mysql": {
+      "types": "./dist/stores/mysql.d.ts",
+      "default": "./dist/stores/mysql.js"
+    },
+    "./stores/sqlite": {
+      "types": "./dist/stores/sqlite.d.ts",
+      "default": "./dist/stores/sqlite.js"
+    },
+    "./schemas": {
+      "types": "./dist/stores/schemas/index.d.ts",
+      "default": "./dist/stores/schemas/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "default": "./dist/http/index.js"
+    },
+    "./adapters/http": {
+      "types": "./dist/adapters/http.d.ts",
+      "default": "./dist/adapters/http.js"
+    },
+    "./adapters/express": {
+      "types": "./dist/adapters/express.d.ts",
+      "default": "./dist/adapters/express.js"
+    },
+    "./adapters/hono": {
+      "types": "./dist/adapters/hono.d.ts",
+      "default": "./dist/adapters/hono.js"
+    },
+    "./adapters/fastify": {
+      "types": "./dist/adapters/fastify.d.ts",
+      "default": "./dist/adapters/fastify.js"
+    },
+    "./adapters/nestjs": {
+      "types": "./dist/adapters/nestjs.d.ts",
+      "default": "./dist/adapters/nestjs.js"
+    },
+    "./adapters/nextjs": {
+      "types": "./dist/adapters/nextjs.d.ts",
+      "default": "./dist/adapters/nextjs.js"
+    },
+    "./adapters/elysia": {
+      "types": "./dist/adapters/elysia.d.ts",
+      "default": "./dist/adapters/elysia.js"
+    },
+    "./adapters/h3": {
+      "types": "./dist/adapters/h3.d.ts",
+      "default": "./dist/adapters/h3.js"
+    },
+    "./adapters/trpc": {
+      "types": "./dist/adapters/trpc.d.ts",
+      "default": "./dist/adapters/trpc.js"
+    },
+    "./adapters/websocket": {
+      "types": "./dist/adapters/websocket.d.ts",
+      "default": "./dist/adapters/websocket.js"
+    },
+    "./adapters/koa": {
+      "types": "./dist/adapters/koa.d.ts",
+      "default": "./dist/adapters/koa.js"
+    },
+    "./adapters/sveltekit": {
+      "types": "./dist/adapters/sveltekit.d.ts",
+      "default": "./dist/adapters/sveltekit.js"
+    },
+    "./adapters/remix": {
+      "types": "./dist/adapters/remix.d.ts",
+      "default": "./dist/adapters/remix.js"
+    },
+    "./adapters/astro": {
+      "types": "./dist/adapters/astro.d.ts",
+      "default": "./dist/adapters/astro.js"
+    },
+    "./adapters/lambda": {
+      "types": "./dist/adapters/lambda.d.ts",
+      "default": "./dist/adapters/lambda.js"
+    },
+    "./adapters/cloudflare-workers": {
+      "types": "./dist/adapters/cloudflare-workers.d.ts",
+      "default": "./dist/adapters/cloudflare-workers.js"
+    },
+    "./adapters/bun": {
+      "types": "./dist/adapters/bun.d.ts",
+      "default": "./dist/adapters/bun.js"
+    },
+    "./adapters/deno": {
+      "types": "./dist/adapters/deno.d.ts",
+      "default": "./dist/adapters/deno.js"
+    },
+    "./decorators": {
+      "types": "./dist/decorators/index.d.ts",
+      "default": "./dist/decorators/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/cli/index.js"
+    },
+    "./analytics": {
+      "types": "./dist/analytics/index.d.ts",
+      "default": "./dist/analytics/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "bench": "node --import tsx/esm benchmarks/run.ts",
+    "size": "tsup && node -e \"const fs=require('fs');const zlib=require('zlib');const f='dist/index.js';const s=zlib.gzipSync(fs.readFileSync(f)).length;console.log(f+': '+s+'B gzip');if(s>15000){process.exit(1)}\"",
+    "prepare": "lefthook install || true"
+  },
+  "bin": {
+    "throtto": "./dist/cli/index.js"
+  },
+  "peerDependencies": {
+    "@upstash/redis": ">=1",
+    "better-sqlite3": ">=9",
+    "ioredis": ">=5",
+    "mysql2": ">=3",
+    "pg": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "@upstash/redis": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.8.0",
+    "@vitest/coverage-v8": "^2.0.0",
+    "lefthook": "^1.7.0",
+    "tsup": "^8.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "keywords": [
+    "rate-limit",
+    "rate-limiting",
+    "throttle",
+    "token-bucket",
+    "sliding-window",
+    "leaky-bucket",
+    "gcra",
+    "rate-limiter",
+    "concurrency",
+    "middleware",
+    "api",
+    "express",
+    "fastify",
+    "hono",
+    "nextjs",
+    "nestjs",
+    "sveltekit"
+  ],
+  "author": "throtto contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/throtto/throtto"
+  },
+  "homepage": "https://github.com/throtto/throtto#readme",
+  "bugs": {
+    "url": "https://github.com/throtto/throtto/issues"
+  },
+  "license": "MIT",
+  "files": ["dist"],
+  "sideEffects": false
+}
