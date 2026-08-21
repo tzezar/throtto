@@ -19,7 +19,7 @@ Transforms are applied left-to-right. Each wrapper receives the limiter produced
 
 ```
 pipe(base, A, B, C)  →  C(B(A(base)))
-                         ↑ outermost — checked first on each request
+                         ↑ outermost - checked first on each request
 ```
 
 On each `check()`, the outermost wrapper runs first. If it short-circuits (e.g. allowlist match), inner wrappers never execute.
@@ -38,13 +38,13 @@ All requests pass, but denials are still logged. Use to test configs before enfo
 Returns `OverrideLimiter` with: `setOverride(key, { action, reason?, expiresAt? })`, `removeOverride(key)`, `getOverride(key)`, `listOverrides()`, `clearOverrides()`
 Force allow/deny specific keys at runtime. Useful for ops: "unblock this VIP NOW".
 
-> **⚠️ Important:** `pipe()` returns a plain `Limiter` — the extra methods (`setOverride`, etc.) are not visible on the piped result. Configure overrides **before** piping, or keep a reference to the unwrapped override limiter:
+> **⚠️ Important:** `pipe()` returns a plain `Limiter` - the extra methods (`setOverride`, etc.) are not visible on the piped result. Configure overrides **before** piping, or keep a reference to the unwrapped override limiter:
 >
 > ```ts
 > const overridden = withOverride(rateLimit('100/minute'))
 > overridden.setOverride('vip', { action: 'allow' })
 >
-> // The piped result is just a Limiter — no .setOverride() on it
+> // The piped result is just a Limiter - no .setOverride() on it
 > const limiter = pipe(overridden, withAllowlist({ allowlist: [] }))
 >
 > // To add overrides later, use the original reference:
@@ -78,7 +78,7 @@ try {
   await doExpensiveWork()
   await reservation.confirm()   // count this request
 } catch {
-  await reservation.cancel()    // refund — doesn't count against the limit
+  await reservation.cancel()    // refund - doesn't count against the limit
 }
 ```
 
@@ -97,12 +97,12 @@ Tracks in-flight operations, drains during shutdown.
 Config: `{ collector?, enableStream? }`
 Transparent metrics collection on every check. See [Analytics docs](./analytics.md).
 
-> **Why a separate import?** Analytics pulls in the ring buffer collector, Prometheus formatter, and streaming infrastructure — code most users don't need. Keeping it in a separate entry point (`@tzezar/throtto/analytics`) ensures it's fully tree-shaken from bundles that don't use it.
+> **Why a separate import?** Analytics pulls in the ring buffer collector, Prometheus formatter, and streaming infrastructure - code most users don't need. Keeping it in a separate entry point (`@tzezar/throtto/analytics`) ensures it's fully tree-shaken from bundles that don't use it.
 
 ## Advanced Limiters
 
 ### createCompoundLimiter
-Multi-layer: burst + minute + hour limits simultaneously. Each layer can use a different algorithm and store — they're fully independent limiters.
+Multi-layer: burst + minute + hour limits simultaneously. Each layer can use a different algorithm and store - they're fully independent limiters.
 ```ts
 const limiter = createCompoundLimiter([
   // Token bucket for burst tolerance
@@ -177,7 +177,7 @@ const limiter = createScheduledLimiter({
 ```
 
 ### createLazyLimiter
-Deferred initialization — useful for serverless cold starts. Factory is the first argument:
+Deferred initialization - useful for serverless cold starts. Factory is the first argument:
 ```ts
 const limiter = createLazyLimiter(
   async () => {

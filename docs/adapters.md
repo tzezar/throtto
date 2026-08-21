@@ -56,7 +56,7 @@ graph TD
 
 ## Using throtto without an adapter
 
-The core library works anywhere — no framework needed. Adapters are convenience wrappers around this:
+The core library works anywhere - no framework needed. Adapters are convenience wrappers around this:
 
 ```ts
 import { createLimiter } from '@tzezar/throtto'
@@ -65,10 +65,10 @@ const limiter = createLimiter('100/minute')
 const result = await limiter.check('user-123')
 
 if (!result.allowed) {
-  // denied — result.retryAfter tells you when to try again
+  // denied - result.retryAfter tells you when to try again
 }
 
-// Works in ANY context — serverless, edge, CLI, tests, etc.
+// Works in ANY context - serverless, edge, CLI, tests, etc.
 ```
 
 Use an adapter when you want automatic key extraction (usually from IP), response headers, and deny responses handled for you.
@@ -81,15 +81,15 @@ All adapters that accept a config object support these shared options:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `limit` | `number` | — | Max requests in the window |
-| `window` | `string` | — | Time window (`'1m'`, `'15m'`, `'1h'`, `'1d'`) |
-| `limiter` | `Limiter` | — | Pre-built limiter (overrides `limit`/`window`) |
+| `limit` | `number` | - | Max requests in the window |
+| `window` | `string` | - | Time window (`'1m'`, `'15m'`, `'1h'`, `'1d'`) |
+| `limiter` | `Limiter` | - | Pre-built limiter (overrides `limit`/`window`) |
 | `key` | `(req) => string` | IP address | Custom key extraction function |
 | `skipPaths` | `string[]` | `[]` | Paths to bypass rate limiting |
 | `skipMethods` | `string[]` | `[]` | HTTP methods to bypass (e.g. `['OPTIONS']`) |
 | `headerFormat` | `'draft-7' \| 'draft-6' \| 'legacy'` | `'draft-7'` | Rate limit header style |
 | `statusCode` | `number` | `429` | HTTP status when denied |
-| `onDeny` | varies by adapter | — | Custom deny response handler |
+| `onDeny` | varies by adapter | - | Custom deny response handler |
 
 When using a **string preset** like `'100/minute'`, this is shorthand for `{ limit: 100, window: '1m' }`.
 
@@ -364,7 +364,7 @@ const router = t.router({
 })
 ```
 
-> **No string preset available** — `key` is always required, so the config object form must be used.
+> **No string preset available** - `key` is always required, so the config object form must be used.
 
 ---
 
@@ -391,7 +391,7 @@ const messageResult = ws.checkMessage(info)
 ws.reset(info)
 ```
 
-> **No string preset available** — `key` is always required, so the config object form must be used.
+> **No string preset available** - `key` is always required, so the config object form must be used.
 
 ---
 

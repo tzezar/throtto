@@ -2,7 +2,7 @@
 
 Throtto has built-in analytics collection with Prometheus, JSON, and CSV export.
 
-> **Why `@tzezar/throtto/analytics` instead of `@tzezar/throtto`?** Analytics includes the ring buffer collector, Prometheus formatter, CSV/JSON exporters, and async streaming infrastructure. Keeping it in a separate entry point ensures this code is fully tree-shaken from bundles that don't use it — your production bundle stays tiny if you only need rate limiting.
+> **Why `@tzezar/throtto/analytics` instead of `@tzezar/throtto`?** Analytics includes the ring buffer collector, Prometheus formatter, CSV/JSON exporters, and async streaming infrastructure. Keeping it in a separate entry point ensures this code is fully tree-shaken from bundles that don't use it - your production bundle stays tiny if you only need rate limiting.
 
 ## withAnalytics Wrapper
 

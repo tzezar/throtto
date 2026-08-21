@@ -182,7 +182,7 @@ const overridden = withOverride(rateLimit('100/minute'))
 overridden.setOverride('vip-user', { action: 'allow' })
 overridden.setOverride('abusive-ip', { action: 'deny' })
 
-// Pipe result is a Limiter — override methods aren't visible on it
+// Pipe result is a Limiter - override methods aren't visible on it
 const limiter = pipe(
   overridden,
   withAllowlist({ allowlist: ['admin-key', 'internal-service'] }),
@@ -192,7 +192,7 @@ const limiter = pipe(
 
 That's it. Pick an algorithm, a store, and a framework adapter - everything else is optional.
 
-> **Works everywhere** — `rateLimit()` and `createLimiter()` from `'@tzezar/throtto'` work in any JavaScript/TypeScript runtime (Node.js, Bun, Deno, edge) without a framework adapter. Adapters add framework-specific middleware integration but are never required.
+> **Works everywhere** - `rateLimit()` and `createLimiter()` from `'@tzezar/throtto'` work in any JavaScript/TypeScript runtime (Node.js, Bun, Deno, edge) without a framework adapter. Adapters add framework-specific middleware integration but are never required.
 
 ---
 
@@ -244,7 +244,7 @@ const limiter = rateLimit({
 })
 ```
 
-> **String preset format:** `'{number}/{unit}'` where unit is `second`/`s`, `minute`/`m`, `hour`/`h`, or `day`/`d`. Custom windows like `'100/15m'` are not supported as strings — use `{ limit: 100, window: '15m' }` instead.
+> **String preset format:** `'{number}/{unit}'` where unit is `second`/`s`, `minute`/`m`, `hour`/`h`, or `day`/`d`. Custom windows like `'100/15m'` are not supported as strings - use `{ limit: 100, window: '15m' }` instead.
 
 ### `createLimiter()` - full control
 
@@ -388,7 +388,7 @@ import { rateLimit } from '@tzezar/throtto/adapters/deno'
 import { rateLimit } from '@tzezar/throtto/adapters/http'
 ```
 
-> Every adapter exports `rateLimit` — the import path tells you which framework. For composition with `pipe()` and wrappers, use `createLimiter` from core to avoid name collision.
+> Every adapter exports `rateLimit` - the import path tells you which framework. For composition with `pipe()` and wrappers, use `createLimiter` from core to avoid name collision.
 
 ### Usage examples
 

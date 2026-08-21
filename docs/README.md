@@ -31,10 +31,10 @@ Request
 └────────────────────────┘  └────────────────────────────┘
 ```
 
-- **Algorithm** — stateless decision function. Given current state + timestamp, returns allow/deny + new state.
-- **Store** — persists algorithm state between checks. Swap stores without changing any other code.
-- **Limiter** — wires algorithm + store together. This is what you call `.check(key)` on.
-- **Adapter** — bridges a Limiter to a specific framework (Express middleware, NestJS guard, etc.). Optional — you can always use the Limiter directly.
+- **Algorithm** - stateless decision function. Given current state + timestamp, returns allow/deny + new state.
+- **Store** - persists algorithm state between checks. Swap stores without changing any other code.
+- **Limiter** - wires algorithm + store together. This is what you call `.check(key)` on.
+- **Adapter** - bridges a Limiter to a specific framework (Express middleware, NestJS guard, etc.). Optional - you can always use the Limiter directly.
 
 ## `rateLimit` vs `createLimiter`
 
@@ -71,7 +71,7 @@ app.use(rateLimit({ limiter }))
 > **⚠️ Limitation:** String presets only support `{number}/{unit}` where unit is one of: `second` (`s`), `minute` (`m`), `hour` (`h`), `day` (`d`).
 >
 > ✅ `'100/minute'`, `'10/s'`, `'1000/h'`, `'5000/day'`
-> ❌ `'100/15m'`, `'50/30s'` — custom windows don't work as strings
+> ❌ `'100/15m'`, `'50/30s'` - custom windows don't work as strings
 >
 > For custom windows, use the object form: `{ limit: 100, window: '15m' }`
 
@@ -89,8 +89,8 @@ const limiter = rateLimit({
   window: '1m',
   store: redisStore({ client }),
 
-  // 'open' (default) — allow requests when store fails (safe for availability)
-  // 'closed' — deny requests when store fails (safe for security)
+  // 'open' (default) - allow requests when store fails (safe for availability)
+  // 'closed' - deny requests when store fails (safe for security)
   failMode: 'open',
 
   // Optional: fall back to a local store instead of blindly allowing/denying
@@ -145,9 +145,9 @@ If Redis is down but a key was recently cached locally, the local cache still se
 
 | Guide | What you'll learn |
 |---|---|
-| [Algorithms](./algorithms.md) | All 7 algorithms — when to use each, config, trade-offs |
-| [Storage Adapters](./stores.md) | Memory, Redis, Upstash, PostgreSQL, MySQL, SQLite — setup & comparison |
-| [Framework Adapters](./adapters.md) | Express, Fastify, Hono, Next.js + 14 more — middleware setup |
+| [Algorithms](./algorithms.md) | All 7 algorithms - when to use each, config, trade-offs |
+| [Storage Adapters](./stores.md) | Memory, Redis, Upstash, PostgreSQL, MySQL, SQLite - setup & comparison |
+| [Framework Adapters](./adapters.md) | Express, Fastify, Hono, Next.js + 14 more - middleware setup |
 | [Composition](./composition.md) | `pipe()`, wrappers (allowlist, dry-run, override, etc.), advanced limiters |
 | [Patterns](./patterns.md) | throttle, debounce, penalty box, quota, cost mapping, backpressure |
 | [HTTP Utilities](./http.md) | RFC 9309 headers, error bodies, key resolvers, path skipping |
