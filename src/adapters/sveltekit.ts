@@ -1,0 +1,134 @@
+import type { Limiter, RateLimitResult } from '../core/types.js'
+import { toErrorBody, toHeaders } from '../http/headers.js'
+import type { HeaderFormat } from '../http/headers.js'
+import { shouldSkip } from '../http/skip.js'
+
+// ─── SvelteKit Types ─────────────────────────────────────────────────────────
+
+export interface SvelteKitEvent {
+  request: Request
+  url: URL
+  getClientAddress(): string
+  locals: Record<string, unknown>
+}
+
+export type SvelteKitResolve = (event: SvelteKitEvent) => Promise<Response>
+
+// ─── Config ──────────────────────────────────────────────────────────────────
+
+export interface SvelteKitAdapterConfig {
+  limiter: Limiter
+  key?: ((event: SvelteKitEvent) => string) | undefined
+  cost?: number | ((event: SvelteKitEvent) => number) | undefined
+  headers?: boolean | undefined
+  headerFormat?: HeaderFormat | undefined
+  /** Paths to skip rate limiting for. Example: ['/health', '/metrics'] */
+  skipPaths?: string[] | undefined
+  /** HTTP methods to skip rate limiting for. Example: ['OPTIONS'] */
+  skipMethods?: string[] | undefined
+  skip?: ((event: SvelteKitEvent) => boolean) | undefined
+  onDeny?:
+    | ((event: SvelteKitEvent, result: RateLimitResult) => Response | undefined | null)
+    | undefined
+  /** Path patterns to rate limit. If not set, all paths are limited. */
+  paths?: string[] | undefined
+  /** Paths to exclude */
+  excludePaths?: string[] | undefined
+}
+
+// ─── Handle Hook ─────────────────────────────────────────────────────────────
+
+/**
+ * Creates a SvelteKit handle hook for rate limiting.
+ *
+ * Usage in hooks.server.ts:
+ * ```ts
+ * import { rateLimit } from 'throtto'
+ * import { sveltekitRateLimit } from 'throtto/adapters/sveltekit'
+ *
+ * const rateLimitHandle = sveltekitRateLimit({
+ *   limiter: rateLimit('100/minute'),
+ *   paths: ['/api/*'],
+ * })
+ *
+ * export const handle = rateLimitHandle
+ * // Or compose: export const handle = sequence(rateLimitHandle, otherHandle)
+ * ```
+ */
+export function sveltekitRateLimit(
+  config: SvelteKitAdapterConfig,
+): (input: { event: SvelteKitEvent; resolve: SvelteKitResolve }) => Promise<Response> {
+  const {
+    limiter,
+    key: keyResolver,
+    cost,
+    headers: includeHeaders = true,
+    headerFormat = 'draft-7',
+    skip,
+    skipPaths,
+    skipMethods,
+    onDeny,
+    paths,
+    excludePaths,
+  } = config
+
+  return async ({ event, resolve }): Promise<Response> => {
+    const pathname = event.url.pathname
+
+    // Path filtering
+    if (paths && !matchesAny(pathname, paths)) return resolve(event)
+    if (excludePaths && matchesAny(pathname, excludePaths)) return resolve(event)
+
+    if (skipPaths || skipMethods) {
+      if (shouldSkip(pathname, event.request.method, { skipPaths, skipMethods })) {
+        return resolve(event)
+      }
+    }
+
+    if (skip?.(event)) return resolve(event)
+
+    const resolvedKey = keyResolver ? keyResolver(event) : event.getClientAddress()
+    const resolvedCost = typeof cost === 'function' ? cost(event) : cost
+
+    const result = await limiter.check(resolvedKey, { cost: resolvedCost })
+
+    // Store in locals for use in endpoints
+    event.locals.rateLimitResult = result
+
+    if (result.allowed) {
+      const response = await resolve(event)
+      if (includeHeaders) {
+        const rateLimitHeaders = toHeaders(result, { format: headerFormat })
+        for (const [name, value] of Object.entries(rateLimitHeaders)) {
+          response.headers.set(name, value)
+        }
+      }
+      return response
+    }
+
+    // Denied
+    if (onDeny) {
+      const custom = onDeny(event, result)
+      if (custom) return custom
+    }
+
+    const body = toErrorBody(result)
+    const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
+    if (includeHeaders) {
+      const rateLimitHeaders = toHeaders(result, { format: headerFormat })
+      for (const [name, value] of Object.entries(rateLimitHeaders)) {
+        responseHeaders.set(name, value)
+      }
+    }
+
+    return new Response(JSON.stringify(body), { status: 429, headers: responseHeaders })
+  }
+}
+
+function matchesAny(pathname: string, patterns: string[]): boolean {
+  return patterns.some((p) => {
+    if (p === '*') return true
+    const regex = p.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*')
+    return new RegExp(`^${regex}$`).test(pathname)
+  })
+}
