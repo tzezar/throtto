@@ -1,0 +1,74 @@
+# @tzezar/throtto
+
+> Comprehensive, framework-agnostic TypeScript rate limiting.
+
+## Overview
+
+throtto is a TypeScript rate limiting library with 7 algorithms, 6 storage adapters, and 18 framework adapters. It uses functional composition (`pipe()`) and provides a unified API where every adapter exports `rateLimit`.
+
+## Install
+
+```
+npm install @tzezar/throtto
+```
+
+## Quick Start
+
+```ts
+import { rateLimit } from '@tzezar/throtto'
+const limiter = rateLimit('100/minute')
+const result = await limiter.check('user-123')
+```
+
+## Core API
+
+- `rateLimit(preset)` - create limiter from `'100/minute'` or `{ limit, window }`
+- `createLimiter(config)` - full control (hooks, prefix, algorithm instances)
+- `pipe(limiter, ...wrappers)` - functional composition
+
+## Algorithms
+
+fixed-window, sliding-window-counter (default), sliding-window-log, token-bucket, leaky-bucket, gcra, concurrency
+
+## Stores
+
+memory (default), redis, upstash, postgres, mysql, sqlite
+
+## Framework Adapters
+
+Every adapter exports `rateLimit` - import path identifies the framework:
+
+```ts
+import { rateLimit } from '@tzezar/throtto/adapters/express'
+import { rateLimit } from '@tzezar/throtto/adapters/nextjs'
+import { rateLimit } from '@tzezar/throtto/adapters/lambda'
+```
+
+Supported: Express, Fastify, Hono, Next.js, SvelteKit, Remix, Astro, NestJS, Elysia, H3, tRPC, WebSocket, Koa, Lambda, CloudFlare Workers, Bun, Deno, Generic HTTP
+
+## Wrappers
+
+withAllowlist, withDryRun, withOverride, withThresholds, withSoftHardLimit, withConditional, withBatch, withGracefulShutdown, withAnalytics
+
+## Advanced Limiters
+
+createCompoundLimiter, createTieredLimiter, createDynamicLimiter, createHierarchyLimiter, createScheduledLimiter, createLazyLimiter
+
+## Patterns
+
+throttle, debounce, createPenaltyBox, createQuota, withCostMapping, withBackpressure
+
+## HTTP Utilities
+
+toHeaders (RFC 9309), toErrorBody (RFC 7807), key resolvers (byIp, byUser, byApiKey, byComposite, byCustom, byPath), shouldSkip
+
+## Testing
+
+createTestLimiter, testClock, mockStore, assertAllowed, assertDenied, exhaust
+
+## Links
+
+- Docs: https://github.com/tzezar/throtto/tree/main/docs
+- Full docs for LLMs: https://raw.githubusercontent.com/tzezar/throtto/main/llms-full.txt
+- npm: https://www.npmjs.com/package/@tzezar/throtto
+- GitHub: https://github.com/tzezar/throtto
