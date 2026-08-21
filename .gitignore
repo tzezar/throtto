@@ -42,3 +42,7 @@ deno.lock
 
 # pnpm auto-generated
 pnpm-workspace.yaml
+
+# Integration test artifacts
+integration-tests/**/pnpm-lock.yaml
+integration-tests/**/node_modules/
