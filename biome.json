@@ -45,6 +45,19 @@
           }
         }
       }
+    },
+    {
+      "include": ["integration-tests/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          },
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
     }
   ]
 }

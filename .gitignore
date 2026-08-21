@@ -33,6 +33,9 @@ legacy/
 # Lock files (pnpm used)
 package-lock.json
 yarn.lock
+bun.lock
+bun.lockb
+deno.lock
 
 # Turborepo
 .turbo
