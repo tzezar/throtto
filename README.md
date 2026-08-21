@@ -123,11 +123,11 @@ Compared against the 6 most popular npm rate limiting packages. ✅ = built-in, 
 ## Installation
 
 ```bash
-npm install throtto
+npm install @tzezar/throtto
 # or
-pnpm add throtto
+pnpm add @tzezar/throtto
 # or
-yarn add throtto
+yarn add @tzezar/throtto
 ```
 
 ## Quick Start
@@ -135,7 +135,7 @@ yarn add throtto
 ### One-liner rate limiting
 
 ```ts
-import { rateLimit } from 'throtto'
+import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
 
@@ -150,7 +150,7 @@ if (result.allowed) {
 ### With Express (inline config)
 
 ```ts
-import { expressRateLimit } from 'throtto/adapters/express'
+import { expressRateLimit } from '@tzezar/throtto/adapters/express'
 
 app.use(expressRateLimit({
   limit: 100,
@@ -162,8 +162,8 @@ app.use(expressRateLimit({
 ### With Redis
 
 ```ts
-import { rateLimit } from 'throtto'
-import { redisStore } from 'throtto/stores/redis'
+import { rateLimit } from '@tzezar/throtto'
+import { redisStore } from '@tzezar/throtto/stores/redis'
 
 const limiter = rateLimit({
   limit: 100,
@@ -175,7 +175,7 @@ const limiter = rateLimit({
 ### With `pipe()` composition
 
 ```ts
-import { rateLimit, pipe, withAllowlist, withDryRun, withOverride } from 'throtto'
+import { rateLimit, pipe, withAllowlist, withDryRun, withOverride } from '@tzezar/throtto'
 
 // Set up overrides before piping
 const overridden = withOverride(rateLimit('100/minute'))
@@ -207,7 +207,7 @@ That's it. Pick an algorithm, a store, and a framework adapter - everything else
 | **Concurrency** | Parallel execution limits | N/A | O(n) |
 
 ```ts
-import { rateLimit } from 'throtto'
+import { rateLimit } from '@tzezar/throtto'
 
 // Default: sliding-window-counter
 const api = rateLimit('100/minute')
@@ -245,7 +245,7 @@ const limiter = rateLimit({
 ### `createLimiter()` - full control
 
 ```ts
-import { createLimiter, tokenBucket, memoryStore } from 'throtto'
+import { createLimiter, tokenBucket, memoryStore } from '@tzezar/throtto'
 
 const limiter = createLimiter({
   algorithm: tokenBucket({ capacity: 20, refillRate: 10, refillInterval: 1000 }),
@@ -294,12 +294,12 @@ await limiter.shutdown({ timeout: 5000 })
 | **SQLite** | Embedded, single-server | No | Yes |
 
 ```ts
-import { memoryStore } from 'throtto/stores/memory'
-import { redisStore } from 'throtto/stores/redis'
-import { upstashStore } from 'throtto/stores/upstash'
-import { postgresStore } from 'throtto/stores/postgres'
-import { mysqlStore } from 'throtto/stores/mysql'
-import { sqliteStore } from 'throtto/stores/sqlite'
+import { memoryStore } from '@tzezar/throtto/stores/memory'
+import { redisStore } from '@tzezar/throtto/stores/redis'
+import { upstashStore } from '@tzezar/throtto/stores/upstash'
+import { postgresStore } from '@tzezar/throtto/stores/postgres'
+import { mysqlStore } from '@tzezar/throtto/stores/mysql'
+import { sqliteStore } from '@tzezar/throtto/stores/sqlite'
 ```
 
 All stores implement the same `Store` interface - swap them without changing any other code.
@@ -325,8 +325,8 @@ await store.shutdown?.()
 Combine a fast local cache with a distributed store for the best of both worlds:
 
 ```ts
-import { withCache } from 'throtto'
-import { redisStore } from 'throtto/stores/redis'
+import { withCache } from '@tzezar/throtto'
+import { redisStore } from '@tzezar/throtto/stores/redis'
 
 const store = withCache(redisStore({ client }), {
   maxSize: 1000,
@@ -339,7 +339,7 @@ const store = withCache(redisStore({ client }), {
 For SQL stores, generate the required schema in your preferred format:
 
 ```ts
-import { getSchema, getDrizzleSchema, getPrismaSchema } from 'throtto/schemas'
+import { getSchema, getDrizzleSchema, getPrismaSchema } from '@tzezar/throtto/schemas'
 
 const sql = getSchema('postgres')     // raw SQL
 const drizzle = getDrizzleSchema()    // Drizzle ORM
@@ -349,9 +349,9 @@ const prisma = getPrismaSchema()      // Prisma schema block
 Or use the CLI:
 
 ```bash
-npx throtto schema --store postgres --format sql
-npx throtto schema --store mysql --format drizzle
-npx throtto schema --store sqlite --format prisma
+npx @tzezar/throtto schema --store postgres --format sql
+npx @tzezar/throtto schema --store mysql --format drizzle
+npx @tzezar/throtto schema --store sqlite --format prisma
 ```
 
 ---
@@ -362,26 +362,26 @@ Every adapter returns the appropriate middleware type for its framework. Support
 
 ```ts
 // Express / Fastify / Hono - support inline config (no separate limiter needed)
-import { expressRateLimit } from 'throtto/adapters/express'
-import { fastifyRateLimit } from 'throtto/adapters/fastify'
-import { honoRateLimit } from 'throtto/adapters/hono'
+import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
+import { honoRateLimit } from '@tzezar/throtto/adapters/hono'
 
 // All other adapters
-import { nextjsAdapter } from 'throtto/adapters/nextjs'
-import { sveltekitAdapter } from 'throtto/adapters/sveltekit'
-import { remixAdapter } from 'throtto/adapters/remix'
-import { astroAdapter } from 'throtto/adapters/astro'
-import { nestjsAdapter } from 'throtto/adapters/nestjs'
-import { elysiaAdapter } from 'throtto/adapters/elysia'
-import { h3Adapter } from 'throtto/adapters/h3'
-import { trpcAdapter } from 'throtto/adapters/trpc'
-import { wsAdapter } from 'throtto/adapters/websocket'
-import { koaAdapter } from 'throtto/adapters/koa'
-import { lambdaAdapter } from 'throtto/adapters/lambda'
-import { cfWorkersAdapter } from 'throtto/adapters/cloudflare-workers'
-import { bunAdapter } from 'throtto/adapters/bun'
-import { denoAdapter } from 'throtto/adapters/deno'
-import { httpAdapter } from 'throtto/adapters/http'
+import { nextRateLimit, withRateLimit } from '@tzezar/throtto/adapters/nextjs'
+import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
+import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
+import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
+import { createThrottleGuard } from '@tzezar/throtto/adapters/nestjs'
+import { elysiaRateLimit } from '@tzezar/throtto/adapters/elysia'
+import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
+import { trpcRateLimit } from '@tzezar/throtto/adapters/trpc'
+import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
+import { koaRateLimit } from '@tzezar/throtto/adapters/koa'
+import { withLambdaRateLimit } from '@tzezar/throtto/adapters/lambda'
+import { withCFRateLimit } from '@tzezar/throtto/adapters/cloudflare-workers'
+import { bunRateLimit } from '@tzezar/throtto/adapters/bun'
+import { denoRateLimit } from '@tzezar/throtto/adapters/deno'
+import { createHttpRateLimiter } from '@tzezar/throtto/adapters/http'
 ```
 
 ### Usage examples
@@ -401,20 +401,22 @@ app.use(expressRateLimit({
 app.use('*', honoRateLimit({ limit: 100, window: '1m' }))
 
 // Next.js (middleware.ts)
-export default nextjsAdapter({ limiter })
+const rl = nextRateLimit({ limiter })
 
 // SvelteKit (hooks.server.ts)
-export const handle = sveltekitAdapter({ limiter })
+export const handle = sveltekitRateLimit({ limiter })
 
 // Lambda
-export const handler = lambdaAdapter({ limiter })
+export const handler = withLambdaRateLimit({ limiter }, async (event) => {
+  return { statusCode: 200, body: 'OK' }
+})
 ```
 
 ### Writing a custom adapter
 
 ```ts
-import type { Limiter } from 'throtto'
-import { toHeaders, toErrorBody, shouldSkip } from 'throtto/http'
+import type { Limiter } from '@tzezar/throtto'
+import { toHeaders, toErrorBody, shouldSkip } from '@tzezar/throtto/http'
 
 function myAdapter(config: { limiter: Limiter; skipPaths?: string[] }) {
   return async (req: Request): Promise<Response | null> => {
@@ -442,7 +444,7 @@ function myAdapter(config: { limiter: Limiter; skipPaths?: string[] }) {
 Build complex limiters by composing simple wrappers:
 
 ```ts
-import { rateLimit, pipe, withAllowlist, withDryRun, withOverride, withThresholds } from 'throtto'
+import { rateLimit, pipe, withAllowlist, withDryRun, withOverride, withThresholds } from '@tzezar/throtto'
 
 const limiter = pipe(
   rateLimit('1000/hour'),
@@ -470,7 +472,7 @@ const limiter = pipe(
 | `withConditional` | Skip limiting based on conditions |
 | `withBatch` | Check multiple keys in one call |
 | `withGracefulShutdown` | Clean shutdown with timeout |
-| `withAnalytics` | Collect metrics on every check (import from `'throtto/analytics'`) |
+| `withAnalytics` | Collect metrics on every check (import from `'@tzezar/throtto/analytics'`) |
 
 ### Advanced limiters
 
@@ -482,7 +484,7 @@ import {
   createHierarchyLimiter,
   createScheduledLimiter,
   createLazyLimiter,
-} from 'throtto'
+} from '@tzezar/throtto'
 
 // Compound - multiple simultaneous limits (each layer can use a different algorithm)
 const compound = createCompoundLimiter([
@@ -492,7 +494,7 @@ const compound = createCompoundLimiter([
 ])
 
 // Tiered - free/pro/enterprise (each tier gets its own algorithm)
-import { slidingWindowCounter } from 'throtto'
+import { slidingWindowCounter } from '@tzezar/throtto'
 
 const tiered = createTieredLimiter({
   tiers: [
@@ -537,7 +539,7 @@ const lazy = createLazyLimiter(
 ### Patterns
 
 ```ts
-import { throttle, debounce, createPenaltyBox, createQuota, withCostMapping, withBackpressure } from 'throtto'
+import { throttle, debounce, createPenaltyBox, createQuota, withCostMapping, withBackpressure } from '@tzezar/throtto'
 
 // Throttle - one call per interval
 const throttled = throttle(myFunction, { interval: '1s' })
@@ -578,7 +580,7 @@ const limiter = pipe(
 ### Headers (RFC 9309)
 
 ```ts
-import { toHeaders, toErrorBody } from 'throtto/http'
+import { toHeaders, toErrorBody } from '@tzezar/throtto/http'
 
 const result = await limiter.check('user-123')
 
@@ -604,7 +606,7 @@ const rfc7807 = toErrorBody(result, { format: 'rfc7807' })
 ### Key resolvers
 
 ```ts
-import { byIp, byUser, byApiKey, byComposite, byCustom, byPath } from 'throtto/http'
+import { byIp, byUser, byApiKey, byComposite, byCustom, byPath } from '@tzezar/throtto/http'
 
 // By IP with proxy trust depth (prevents spoofing)
 const key = byIp({ trustDepth: 1 })
@@ -630,8 +632,8 @@ const key = byCustom((req) => req.headers['x-tenant-id'] ?? 'default')
 ## Analytics
 
 ```ts
-import { withAnalytics } from 'throtto/analytics'
-import { toPrometheus, toJSON, toCSV } from 'throtto/analytics'
+import { withAnalytics } from '@tzezar/throtto/analytics'
+import { toPrometheus, toJSON, toCSV } from '@tzezar/throtto/analytics'
 
 const limiter = withAnalytics(rateLimit('100/minute'), { enableStream: true })
 
@@ -667,7 +669,7 @@ if (stream) {
 For NestJS and other decorator-based frameworks:
 
 ```ts
-import { Throttle, SkipThrottle, ThrottleCost, withThrottle } from 'throtto/decorators'
+import { Throttle, SkipThrottle, ThrottleCost, withThrottle } from '@tzezar/throtto/decorators'
 
 @Throttle({ limit: '100/minute' })
 class ApiController {
@@ -695,8 +697,8 @@ const throttled = withThrottle(myFunction, {
 ## Testing
 
 ```ts
-import { createTestLimiter } from 'throtto/testing'
-import { assertAllowed, assertDenied, exhaust } from 'throtto/testing'
+import { createTestLimiter } from '@tzezar/throtto/testing'
+import { assertAllowed, assertDenied, exhaust } from '@tzezar/throtto/testing'
 
 // One-liner test setup - limiter + controllable clock + store
 const { limiter, clock, store } = createTestLimiter({ limit: 5, window: '1m' })
@@ -714,7 +716,7 @@ clock.advance(60_000) // fast-forward 1 minute
 assertAllowed(await limiter.check('user-1')) // window reset
 
 // Mock store with failure injection
-import { mockStore } from 'throtto/testing'
+import { mockStore } from '@tzezar/throtto/testing'
 
 const store = mockStore({
   failAfter: 3,        // fail after 3 calls
@@ -729,7 +731,7 @@ const store = mockStore({
 ### Override (force allow/deny)
 
 ```ts
-import { withOverride } from 'throtto'
+import { withOverride } from '@tzezar/throtto'
 
 const limiter = withOverride(rateLimit('100/minute'))
 
@@ -741,7 +743,7 @@ limiter.removeOverride('vip-user')  // remove override
 ### Export / Import state
 
 ```ts
-import { exportState, importState } from 'throtto'
+import { exportState, importState } from '@tzezar/throtto'
 
 // Backup current state
 const snapshot = await exportState(store, ['key1', 'key2'])
@@ -754,7 +756,7 @@ console.log(`Imported ${result.imported} keys`)
 ### Health checks
 
 ```ts
-import { createHealthCheck } from 'throtto'
+import { createHealthCheck } from '@tzezar/throtto'
 
 const health = createHealthCheck({ store })
 const status = await health.check()
@@ -764,7 +766,7 @@ const status = await health.check()
 ### Graceful shutdown
 
 ```ts
-import { withGracefulShutdown } from 'throtto'
+import { withGracefulShutdown } from '@tzezar/throtto'
 
 const limiter = withGracefulShutdown(rateLimit('100/minute'), {
   drainTimeout: 5000,
@@ -792,10 +794,10 @@ import type {
   Clock,
   LimiterConfig,
   LimiterHooks,
-} from 'throtto'
+} from '@tzezar/throtto'
 
 // Type guards
-import { isAllowed, isDenied, isLimiter } from 'throtto'
+import { isAllowed, isDenied, isLimiter } from '@tzezar/throtto'
 
 if (isAllowed(result)) {
   result.remaining // typed as AllowedResult
@@ -899,9 +901,9 @@ Results vary by CPU, Node.js version, and system load. The benchmark suite is in
 
 | Import | Size (minified + gzipped) |
 | ---------------------- | ------------------------- |
-| `throtto` (core) | ~3 KB |
-| `throtto/stores/redis` | ~1.5 KB |
-| `throtto/adapters/*` | ~0.5 KB each |
+| `@tzezar/throtto` (core) | ~3 KB |
+| `@tzezar/throtto/stores/redis` | ~1.5 KB |
+| `@tzezar/throtto/adapters/*` | ~0.5 KB each |
 
 Zero runtime dependencies in core. Store and framework adapters use optional peer dependencies - install only what you use. Everything is tree-shakeable.
 
