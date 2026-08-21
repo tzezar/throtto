@@ -1,0 +1,17 @@
+{
+  "name": "throtto-hono-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm server.ts",
+    "test": "node --import tsx/esm test.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "@tzezar/throtto": "latest",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0"
+  }
+}

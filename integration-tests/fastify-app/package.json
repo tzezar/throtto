@@ -1,0 +1,16 @@
+{
+  "name": "throtto-fastify-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm server.ts",
+    "test": "node --import tsx/esm test.ts"
+  },
+  "dependencies": {
+    "@tzezar/throtto": "latest",
+    "fastify": "^5.3.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0"
+  }
+}

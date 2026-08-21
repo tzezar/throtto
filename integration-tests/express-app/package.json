@@ -1,0 +1,17 @@
+{
+  "name": "throtto-express-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm server.ts",
+    "test": "node --import tsx/esm test.ts"
+  },
+  "dependencies": {
+    "@tzezar/throtto": "latest",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "tsx": "^4.23.0"
+  }
+}

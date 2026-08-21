@@ -1,0 +1,17 @@
+{
+  "name": "throtto-h3-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm server.ts",
+    "test": "node --import tsx/esm test.ts"
+  },
+  "dependencies": {
+    "@tzezar/throtto": "latest",
+    "h3": "^1.15.0",
+    "listhen": "^1.9.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "throtto-trpc-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --import tsx/esm test.ts" },
+  "dependencies": { "@tzezar/throtto": "latest" },
+  "devDependencies": { "tsx": "^4.23.0" }
+}

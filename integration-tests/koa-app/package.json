@@ -1,0 +1,17 @@
+{
+  "name": "throtto-koa-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm server.ts",
+    "test": "node --import tsx/esm test.ts"
+  },
+  "dependencies": {
+    "@tzezar/throtto": "latest",
+    "koa": "^2.16.0"
+  },
+  "devDependencies": {
+    "@types/koa": "^2.15.0",
+    "tsx": "^4.23.0"
+  }
+}

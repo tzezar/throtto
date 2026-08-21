@@ -1,0 +1,11 @@
+{
+  "name": "throtto-elysia-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun run test.ts"
+  },
+  "dependencies": {
+    "@tzezar/throtto": "latest"
+  }
+}
