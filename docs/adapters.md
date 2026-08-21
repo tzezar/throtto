@@ -123,40 +123,30 @@ import { fastifyRateLimit, fastifyRouteRateLimit } from '@tzezar/throtto/adapter
 
 Two exports:
 
-- **`fastifyRateLimit(config)`** — a Fastify plugin: `(fastify) => void`. Registers an `onRequest` hook internally. Use with `app.register()`. Note: this plugin is known to have issues with Fastify 5 — prefer `fastifyRouteRateLimit` as the primary approach.
+- **`fastifyRateLimit(config)`** — a Fastify plugin: `(fastify) => void`. Registers an `onRequest` hook globally (skips encapsulation). Use with `app.register()`.
 - **`fastifyRouteRateLimit(config)`** — a Fastify hook: `(request: FastifyRequest, reply: FastifyReply) => Promise<void>`. Use with `app.addHook('onRequest', ...)` or per-route `onRequest`.
 
-### With `fastifyRouteRateLimit` (recommended)
-
-```ts
-import { fastifyRouteRateLimit } from '@tzezar/throtto/adapters/fastify'
-import { rateLimit } from '@tzezar/throtto'
-
-const limiter = rateLimit('100/minute')
-app.addHook('onRequest', fastifyRouteRateLimit({
-  limiter,
-  skipPaths: ['/health'],
-  key: (request) => request.headers['x-api-key'] ?? request.ip,
-}))
-```
-
-### Inline config
-
-```ts
-app.addHook('onRequest', fastifyRouteRateLimit({ limit: 100, window: '1m' }))
-```
-
-### With `fastifyRateLimit` plugin
+### Global with plugin (simplest)
 
 ```ts
 import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
-app.register(fastifyRateLimit({ limiter }))
+await app.register(fastifyRateLimit({
+  limiter,
+  skipPaths: ['/health'],
+  key: (request) => request.headers['x-api-key'] ?? request.ip,
+}))
 ```
 
-> ⚠️ `fastifyRateLimit` has known compatibility issues with Fastify 5. Use `fastifyRouteRateLimit` if you encounter problems.
+### Global with hook
+
+```ts
+import { fastifyRouteRateLimit } from '@tzezar/throtto/adapters/fastify'
+
+app.addHook('onRequest', fastifyRouteRateLimit({ limit: 100, window: '1m' }))
+```
 
 ### Per-route
 
