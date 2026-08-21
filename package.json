@@ -5,6 +5,7 @@
   },
   "version": "1.0.0",
   "description": "Comprehensive, framework-agnostic TypeScript rate limiting library",
+  "packageManager": "pnpm@11.21.0",
   "type": "module",
   "engines": {
     "node": ">=20"
