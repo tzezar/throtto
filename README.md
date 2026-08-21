@@ -974,10 +974,11 @@ Contributions are welcome! Please open an issue first to discuss significant cha
 git clone https://github.com/tzezar/throtto.git
 cd throtto
 pnpm install
-pnpm run test        # vitest
-pnpm run typecheck   # tsc --noEmit
-pnpm run build       # tsup
-pnpm run lint        # biome
+pnpm run test             # vitest (619 unit tests)
+pnpm run test:integration # all 17 integration apps (Node, Bun, Deno)
+pnpm run typecheck        # tsc --noEmit
+pnpm run build            # tsup
+pnpm run lint             # biome
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed guidelines on adding algorithms, stores, and adapters.
