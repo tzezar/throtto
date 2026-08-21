@@ -208,11 +208,11 @@
   "author": "throtto contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/throtto/throtto"
+    "url": "https://github.com/tzezar/throtto"
   },
-  "homepage": "https://github.com/throtto/throtto#readme",
+  "homepage": "https://github.com/tzezar/throtto#readme",
   "bugs": {
-    "url": "https://github.com/throtto/throtto/issues"
+    "url": "https://github.com/tzezar/throtto/issues"
   },
   "license": "MIT",
   "files": [
