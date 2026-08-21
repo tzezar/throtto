@@ -18,6 +18,32 @@
 
 ---
 
+## Table of Contents
+
+- [Features](#features)
+- [How throtto Compares](#how-throtto-compares)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Algorithms](#algorithms)
+- [Storage Adapters](#storage-adapters)
+- [Framework Adapters](#framework-adapters)
+- [Composition](#composition)
+- [HTTP Utilities](#http-utilities)
+- [Analytics](#analytics)
+- [Decorators](#decorators)
+- [Testing](#testing)
+- [Admin & Operations](#admin--operations)
+- [TypeScript](#typescript)
+- [Key Normalization](#key-normalization)
+- [Fail Modes](#fail-modes)
+- [Benchmarks](#benchmarks)
+- [Bundle Size](#bundle-size)
+- [Peer Dependencies](#peer-dependencies)
+- [Contributing](#contributing)
+- [Documentation](#documentation)
+
+---
+
 ## Features
 
 - 🔒 **7 algorithms** - Fixed Window, Sliding Window (Counter + Log), Token Bucket, Leaky Bucket, GCRA, Concurrency
