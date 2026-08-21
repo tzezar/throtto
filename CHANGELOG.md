@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.0 (2026-08-21)
+
+
+### Features
+
+* throtto 1.0.0 - framework-agnostic TypeScript rate limiting ([25002d0](https://github.com/tzezar/throtto/commit/25002d0e7f840476ebc37c8de8858ff2a13d7d60))
+
+
+### Bug Fixes
+
+* allow build scripts in CI ([61eed53](https://github.com/tzezar/throtto/commit/61eed5370a210cc2bd26f533090285576c302393))
+* allow dependency build scripts via .npmrc ([2c1009b](https://github.com/tzezar/throtto/commit/2c1009b4a7272d498e79b6e8cdf7c57162dfb861))
+* require Node.js 22+, update CI matrix ([3620c92](https://github.com/tzezar/throtto/commit/3620c921bd6e73ab25e0829a41234499f1b662fb))
+* skip build scripts in CI ([58b6df1](https://github.com/tzezar/throtto/commit/58b6df1ed9f5af5e129bcb0ae6c2f808cedee440))
+
 ## [1.0.0] - 2026-08-21
 
 ### Added
