@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Comprehensive, framework-agnostic TypeScript rate limiting library",
   "packageManager": "pnpm@11.21.0",
   "type": "module",
@@ -147,7 +147,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test:integration": "node --import tsx/esm scripts/test-integrations.ts",
-        "bench": "node --import tsx/esm benchmarks/run.ts",
+    "bench": "node --import tsx/esm benchmarks/run.ts",
     "size": "tsup && node -e \"const fs=require('fs');const zlib=require('zlib');const f='dist/index.js';const s=zlib.gzipSync(fs.readFileSync(f)).length;console.log(f+': '+s+'B gzip');if(s>15000){process.exit(1)}\"",
     "prepare": "test -n \"$CI\" || lefthook install || true"
   },
