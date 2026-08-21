@@ -215,6 +215,8 @@
     "url": "https://github.com/throtto/throtto/issues"
   },
   "license": "MIT",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false
 }
