@@ -1,0 +1,87 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  integration-node:
+    name: Node.js adapters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install app dependencies
+        working-directory: integration-tests
+        run: |
+          for app in express-app hono-app fastify-app koa-app h3-app generic-http-app \
+                     nextjs-app sveltekit-app remix-app astro-app nestjs-app \
+                     trpc-app websocket-app lambda-app; do
+            echo "Installing $app..."
+            cd $app && pnpm install --ignore-scripts && cd ..
+          done
+
+      - name: Run integration tests
+        working-directory: integration-tests
+        run: |
+          FAILED=0
+          for app in express-app hono-app fastify-app koa-app h3-app generic-http-app \
+                     nextjs-app sveltekit-app remix-app astro-app nestjs-app \
+                     trpc-app websocket-app lambda-app; do
+            echo "=== Testing $app ==="
+            cd $app
+            if node --import tsx/esm test.ts; then
+              echo "✅ $app passed"
+            else
+              echo "❌ $app FAILED"
+              FAILED=1
+            fi
+            cd ..
+            echo ""
+          done
+          exit $FAILED
+
+  integration-bun:
+    name: Bun adapters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install and test Elysia app
+        working-directory: integration-tests/elysia-app
+        run: |
+          bun install
+          bun run test.ts
+
+      - name: Install and test Bun app
+        working-directory: integration-tests/bun-app
+        run: |
+          bun install
+          bun run test.ts
+
+  integration-deno:
+    name: Deno adapter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run Deno integration test
+        working-directory: integration-tests/deno-app
+        run: deno run --allow-net --allow-read --allow-env --min-dep-age=0 test.ts
