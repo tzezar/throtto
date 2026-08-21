@@ -922,13 +922,33 @@ Results vary by CPU, Node.js version, and system load. The benchmark suite is in
 
 ## Bundle Size
 
-| Import | Size (minified + gzipped) |
-| ---------------------- | ------------------------- |
-| `@tzezar/throtto` (core) | ~3 KB |
-| `@tzezar/throtto/stores/redis` | ~1.5 KB |
-| `@tzezar/throtto/adapters/*` | ~0.5 KB each |
+throtto is tree-shakeable and side-effect free. You only pay for what you import:
 
-Zero runtime dependencies in core. Store and framework adapters use optional peer dependencies - install only what you use. Everything is tree-shakeable.
+| What you import | Gzipped size |
+|----------------|-------------|
+| `rateLimit` (most common) | 4.1 KB |
+| `createLimiter` | 1.3 KB |
+| Single algorithm (e.g. `tokenBucket`) | ~900 B |
+| Single store (e.g. `redisStore`) | ~870 B |
+| Single wrapper (e.g. `withAllowlist`) | ~430 B |
+| `pipe` | 176 B |
+| `toHeaders` + `toErrorBody` | ~800 B |
+| Full barrel (no tree-shaking) | 13.5 KB |
+
+*Sizes from [bundlephobia exports analysis](https://bundlephobia.com/package/@tzezar/throtto). With Vite, Rollup, or webpack 5, only what you import is included.*
+
+**How this compares** (full package, minified + gzipped, from [bundlephobia](https://bundlephobia.com)):
+
+| Package | Gzipped | Dependencies | What you get |
+|---------|---------|--------------|-------------|
+| **@tzezar/throtto** (tree-shaken) | ~4.1 KB | 0 | `rateLimit` + 1 algorithm + memory store |
+| @upstash/ratelimit | 9.2 KB | 1 | 3 algorithms, Upstash only |
+| **@tzezar/throtto** (full barrel) | 13.5 KB | 0 | 7 algorithms, 6 stores, 18 adapters, composition, patterns |
+| bottleneck | 14.2 KB | 0 | Concurrency + rate limiting, no framework adapters |
+| express-rate-limit | 15.0 KB | 2 | 1 algorithm, 1 store, Express only |
+| rate-limiter-flexible | 16.9 KB | 0 | Comparable features, CJS only |
+
+Zero runtime dependencies in core. Store and framework adapters use optional peer dependencies - install only what you use.
 
 ---
 
