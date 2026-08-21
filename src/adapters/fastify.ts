@@ -76,14 +76,15 @@ export interface FastifyAdapterConfig {
 
 /**
  * Creates a Fastify rate limit plugin.
+ * Skips Fastify encapsulation so the hook applies globally.
  *
  * Usage:
  * ```ts
- * import { rateLimit } from 'throtto'
- * import { fastifyRateLimit } from 'throtto/adapters/fastify'
+ * import { rateLimit } from '@tzezar/throtto'
+ * import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
  *
  * const limiter = rateLimit('100/minute')
- * fastify.register(fastifyRateLimit({ limiter }))
+ * await fastify.register(fastifyRateLimit({ limiter }))
  * ```
  */
 export function fastifyRateLimit(config: FastifyAdapterConfig): (fastify: FastifyInstance) => void {
@@ -118,7 +119,7 @@ export function fastifyRateLimit(config: FastifyAdapterConfig): (fastify: Fastif
     statusCode = 429,
   } = config
 
-  return (fastify: FastifyInstance): void => {
+  const plugin = (fastify: FastifyInstance): void => {
     fastify.addHook(
       'onRequest',
       async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
@@ -157,6 +158,12 @@ export function fastifyRateLimit(config: FastifyAdapterConfig): (fastify: Fastif
       },
     )
   }
+
+  // Skip Fastify encapsulation so the hook applies globally.
+  // This is equivalent to wrapping with fastify-plugin but without the dependency.
+  ;(plugin as unknown as Record<symbol, boolean>)[Symbol.for('skip-override')] = true
+
+  return plugin
 }
 
 /**
