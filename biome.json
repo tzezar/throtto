@@ -33,7 +33,7 @@
     }
   },
   "files": {
-    "ignore": ["dist", "node_modules", "*.md"]
+    "ignore": ["dist", "node_modules", "*.md", "package.json"]
   },
   "overrides": [
     {
