@@ -25,15 +25,13 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          PNPM_ALLOW_BUILDS: true
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Typecheck
         run: pnpm run typecheck
 
       - name: Test
-        run: pnpm run test -- --coverage
+        run: pnpm run test
 
       - name: Build
         run: pnpm run build
@@ -60,9 +58,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          PNPM_ALLOW_BUILDS: true
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build
         run: pnpm run build
