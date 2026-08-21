@@ -425,3 +425,22 @@ process.on('SIGTERM', async () => {
 ```
 
 For SQL stores, `shutdown()` clears the cleanup interval timer. It does **not** close the database pool - you manage pool lifecycle yourself.
+
+---
+
+## Atomicity
+
+All built-in stores implement `atomic()` - race-free read-modify-write in a single operation:
+
+| Store | Mechanism |
+|-------|----------|
+| Memory | Synchronous updater (single-process, no race possible) |
+| Redis | Lua compare-and-swap script with retries |
+| Upstash | Lua CAS via REST API |
+| PostgreSQL | `SELECT ... FOR UPDATE` (row-level lock) |
+| MySQL | `SELECT ... FOR UPDATE` (InnoDB row-level lock) |
+| SQLite | `db.transaction()` (serialized) |
+
+The limiter automatically uses `atomic()` when available. If a custom store omits it, the limiter falls back to get-then-set (safe for single-process only).
+
+You don't need to configure anything - atomicity is the default behavior with every built-in store.
