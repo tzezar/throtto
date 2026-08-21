@@ -66,11 +66,12 @@ Compared against the 6 most popular npm rate limiting packages. ✅ = built-in, 
 | Feature | **throtto** | rate-limiter-flexible | express-rate-limit | @upstash/ratelimit | @nestjs/throttler | bottleneck | limiter |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Downloads/wk | new | 1.9M | 38.6M | 1.5M | 2.5M | 7.9M | 10.9M |
+| Production-proven | ❌ new | ✅ 5+ years | ✅ 10+ years | ✅ | ✅ | ✅ | ✅ |
 | Framework-agnostic | ✅ | ✅ | | ✅ | | ✅ | ✅ |
 | TypeScript-first | ✅ strict | ⚠️ .d.ts only | ✅ | ✅ | ✅ | ⚠️ .d.ts only | ✅ |
 | Zero runtime deps | ✅ | ✅ | | | ✅ | ✅ | ✅ |
 | ESM + tree-shake | ✅ | ⚠️ CJS only | ✅ | ✅ | ✅ | ⚠️ CJS only | ✅ |
-| Actively maintained | ✅ | ✅ | ✅ | ✅ | ✅ | | |
+| CJS support | ❌ ESM-only | ✅ | ✅ | | ✅ | ✅ | ✅ |
 
 **Algorithms**
 
@@ -134,6 +135,10 @@ Compared against the 6 most popular npm rate limiting packages. ✅ = built-in, 
 | Graceful shutdown | ✅ | | | | | ✅ `stop()` | |
 | Analytics / Prometheus | ✅ | | | ✅ dashboard | | | |
 | Fail-open + fallback | ✅ | ✅ insurance | ✅ passOnStoreError | | | | |
+| Job queuing / priority | | | | | | ✅ | |
+| Cluster mode (multi-process) | | ✅ | | | | ✅ | |
+| Multi-region / edge-native | | | | ✅ | | | |
+| Web dashboard | | | | ✅ | | | |
 
 **Testing DX**
 
@@ -144,7 +149,9 @@ Compared against the 6 most popular npm rate limiting packages. ✅ = built-in, 
 | One-liner test setup | ✅ | | | | | | |
 | Assertion helpers | ✅ | | | | | | |
 
-> Downloads from npm, August 2026. ⚠️ = partial or via community packages. Blank = not available. Corrections welcome - [open an issue](https://github.com/tzezar/throtto/issues).
+> Downloads from npm, August 2026. ✅ = built-in, ⚠️ = partial or via community packages. Blank = not available. Corrections welcome - [open an issue](https://github.com/tzezar/throtto/issues).
+>
+> **Honest gaps:** throtto is new and unproven at scale. It's ESM-only (no CJS), has no MongoDB store, no web dashboard, no multi-region coordination, and no job queuing. If you need battle-tested production stability today, rate-limiter-flexible and express-rate-limit have years of track record. If you want modern DX, TypeScript strictness, and composability - that's where throtto shines.
 
 ## Installation
 
