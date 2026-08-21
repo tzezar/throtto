@@ -1,6 +1,6 @@
 <div align="center">
 
-<img alt="throtto" src="./assets/logo-with-background.png" width="400">
+<img alt="throtto" src="https://raw.githubusercontent.com/tzezar/throtto/main/assets/logo-with-background.png" width="400">
 
 **Comprehensive, framework-agnostic TypeScript rate limiting.**
 
