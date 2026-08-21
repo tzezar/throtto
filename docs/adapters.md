@@ -3,9 +3,23 @@
 Throtto provides 18 framework adapters, each returning the correct middleware type for its framework. Import only what you need - every adapter is a separate entry point, so unused adapters are never bundled.
 
 ```ts
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
-import { honoRateLimit }    from '@tzezar/throtto/adapters/hono'
-import { nextjsAdapter }    from '@tzezar/throtto/adapters/nextjs'
+import { expressRateLimit }       from '@tzezar/throtto/adapters/express'
+import { honoRateLimit }          from '@tzezar/throtto/adapters/hono'
+import { nextRateLimit }          from '@tzezar/throtto/adapters/nextjs'
+import { sveltekitRateLimit }     from '@tzezar/throtto/adapters/sveltekit'
+import { withRemixRateLimit }     from '@tzezar/throtto/adapters/remix'
+import { astroRateLimit }         from '@tzezar/throtto/adapters/astro'
+import { createThrottleGuard }    from '@tzezar/throtto/adapters/nestjs'
+import { elysiaRateLimit }        from '@tzezar/throtto/adapters/elysia'
+import { h3RateLimit }            from '@tzezar/throtto/adapters/h3'
+import { trpcRateLimit }          from '@tzezar/throtto/adapters/trpc'
+import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
+import { koaRateLimit }           from '@tzezar/throtto/adapters/koa'
+import { withLambdaRateLimit }    from '@tzezar/throtto/adapters/lambda'
+import { withCFRateLimit }        from '@tzezar/throtto/adapters/cloudflare-workers'
+import { bunRateLimit }           from '@tzezar/throtto/adapters/bun'
+import { denoRateLimit }          from '@tzezar/throtto/adapters/deno'
+import { createHttpRateLimiter }  from '@tzezar/throtto/adapters/http'
 // … etc.
 ```
 
@@ -25,9 +39,11 @@ All adapters share a unified config surface:
 | `cost`          | `number \| (req) => number`   | Token cost per request (default `1`)                      |
 | `headers`       | `boolean`                     | Whether to send rate-limit headers (default `true`)       |
 | `headerFormat`  | `'draft-7' \| 'draft-6' \| 'legacy'` | Header spec to use (default `'draft-7'`)          |
-| `statusCode`    | `number`                      | HTTP status on deny (default `429`)                       |
-| `message`       | `string \| object`            | Response body on deny                                     |
-| `onDeny`        | `(req, res, result) => void`  | Custom deny handler (signature varies by framework)       |
+| `statusCode`    | `number`                      | HTTP status on deny — **Express, Fastify, NestJS, Koa only** (default `429`) |
+| `message`       | `string \| object`            | Response body on deny — **Express only**                  |
+| `onDeny`        | varies by adapter             | Custom deny handler (signature varies by framework)       |
+| `paths`         | `string[]`                    | Paths to rate-limit — **Next.js, SvelteKit, Astro only**  |
+| `excludePaths`  | `string[]`                    | Paths to exclude — **Next.js, SvelteKit, Astro only**     |
 
 **Express, Hono, and Fastify** also support **inline config** - pass `{ limit, window }` directly without creating a separate limiter:
 
@@ -102,31 +118,45 @@ app.get('/api/search', expressRateLimit({ limit: 30, window: '1m' }), searchHand
 ## Fastify
 
 ```ts
-import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
+import { fastifyRateLimit, fastifyRouteRateLimit } from '@tzezar/throtto/adapters/fastify'
 ```
 
-Returns a Fastify `onRequest` hook: `(request: FastifyRequest, reply: FastifyReply) => Promise<void>`.
+Two exports:
 
-### Inline config
+- **`fastifyRateLimit(config)`** — a Fastify plugin: `(fastify) => void`. Registers an `onRequest` hook internally. Use with `app.register()`. Note: this plugin is known to have issues with Fastify 5 — prefer `fastifyRouteRateLimit` as the primary approach.
+- **`fastifyRouteRateLimit(config)`** — a Fastify hook: `(request: FastifyRequest, reply: FastifyReply) => Promise<void>`. Use with `app.addHook('onRequest', ...)` or per-route `onRequest`.
 
-```ts
-app.register(async (instance) => {
-  instance.addHook('onRequest', fastifyRateLimit({ limit: 100, window: '1m' }))
-})
-```
-
-### With a limiter
+### With `fastifyRouteRateLimit` (recommended)
 
 ```ts
+import { fastifyRouteRateLimit } from '@tzezar/throtto/adapters/fastify'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
-app.addHook('onRequest', fastifyRateLimit({
+app.addHook('onRequest', fastifyRouteRateLimit({
   limiter,
   skipPaths: ['/health'],
   key: (request) => request.headers['x-api-key'] ?? request.ip,
 }))
 ```
+
+### Inline config
+
+```ts
+app.addHook('onRequest', fastifyRouteRateLimit({ limit: 100, window: '1m' }))
+```
+
+### With `fastifyRateLimit` plugin
+
+```ts
+import { fastifyRateLimit } from '@tzezar/throtto/adapters/fastify'
+import { rateLimit } from '@tzezar/throtto'
+
+const limiter = rateLimit('100/minute')
+app.register(fastifyRateLimit({ limiter }))
+```
+
+> ⚠️ `fastifyRateLimit` has known compatibility issues with Fastify 5. Use `fastifyRouteRateLimit` if you encounter problems.
 
 ### Per-route
 
@@ -134,7 +164,7 @@ app.addHook('onRequest', fastifyRateLimit({
 app.route({
   method: 'POST',
   url: '/api/login',
-  onRequest: fastifyRateLimit({ limit: 5, window: '15m' }),
+  onRequest: fastifyRouteRateLimit({ limit: 5, window: '15m' }),
   handler: loginHandler,
 })
 ```
@@ -147,7 +177,7 @@ app.route({
 import { honoRateLimit } from '@tzezar/throtto/adapters/hono'
 ```
 
-Returns Hono `MiddlewareHandler` - works with any Hono runtime (Bun, Deno, Cloudflare Workers, Node).
+Returns `(c, next) => Promise<Response | undefined>` — works with any Hono runtime (Bun, Deno, Cloudflare Workers, Node).
 
 ### Inline config
 
@@ -181,31 +211,49 @@ app.use('*', honoRateLimit({
 ## Next.js
 
 ```ts
-import { nextjsAdapter } from '@tzezar/throtto/adapters/nextjs'
+import { nextRateLimit, withRateLimit } from '@tzezar/throtto/adapters/nextjs'
 ```
 
-Returns a Next.js middleware function compatible with `middleware.ts`.
+Two exports:
 
-### Usage
+- **`nextRateLimit(config)`** — returns `(req: NextRequest) => Promise<Response | null>`. Designed for `middleware.ts`. Returns `null` when the request is allowed, or a `Response` when denied.
+- **`withRateLimit(config, handler)`** — wraps a route handler: `(req: Request) => Promise<Response>`. Designed for App Router API routes.
+
+### Middleware usage
 
 ```ts
 // middleware.ts
-import { nextjsAdapter } from '@tzezar/throtto/adapters/nextjs'
+import { nextRateLimit } from '@tzezar/throtto/adapters/nextjs'
 import { rateLimit } from '@tzezar/throtto'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 const limiter = rateLimit('100/minute')
-
-export default nextjsAdapter({
+const rateLimitCheck = nextRateLimit({
   limiter,
-  skipPaths: ['/api/health', '/_next'],
+  excludePaths: ['/api/health', '/_next'],
 })
+
+export async function middleware(request: NextRequest) {
+  const denied = await rateLimitCheck(request)
+  if (denied) return denied
+  return NextResponse.next()
+}
 ```
 
 ### With matcher
 
 ```ts
 // middleware.ts
-export default nextjsAdapter({ limiter })
+import { nextRateLimit } from '@tzezar/throtto/adapters/nextjs'
+
+const rateLimitCheck = nextRateLimit({ limiter })
+
+export async function middleware(request: NextRequest) {
+  const denied = await rateLimitCheck(request)
+  if (denied) return denied
+  return NextResponse.next()
+}
 
 export const config = {
   matcher: '/api/:path*',
@@ -216,17 +264,15 @@ export const config = {
 
 ```ts
 // app/api/upload/route.ts
-import { nextjsAdapter } from '@tzezar/throtto/adapters/nextjs'
+import { withRateLimit } from '@tzezar/throtto/adapters/nextjs'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('10/minute')
-const rl = nextjsAdapter({ limiter })
 
-export async function POST(request: NextRequest) {
-  const denied = await rl(request)
-  if (denied) return denied
+export const POST = withRateLimit({ limiter }, async (req: Request) => {
   // … handle upload
-}
+  return new Response(JSON.stringify({ ok: true }))
+})
 ```
 
 ---
@@ -234,51 +280,45 @@ export async function POST(request: NextRequest) {
 ## SvelteKit
 
 ```ts
-import { sveltekitAdapter } from '@tzezar/throtto/adapters/sveltekit'
+import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
 ```
 
-Returns a SvelteKit `Handle` function for use in `hooks.server.ts`.
+Returns a SvelteKit `Handle` function: `({ event, resolve }) => Promise<Response>`. Stores the rate-limit result in `event.locals.rateLimitResult`.
 
 ### Usage
 
 ```ts
 // src/hooks.server.ts
-import { sveltekitAdapter } from '@tzezar/throtto/adapters/sveltekit'
+import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
-export const handle = sveltekitAdapter({ limiter })
+export const handle = sveltekitRateLimit({ limiter })
 ```
 
 ### With `sequence`
 
 ```ts
 import { sequence } from '@sveltejs/kit/hooks'
-import { sveltekitAdapter } from '@tzezar/throtto/adapters/sveltekit'
+import { sveltekitRateLimit } from '@tzezar/throtto/adapters/sveltekit'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
 
 export const handle = sequence(
-  sveltekitAdapter({ limiter, skipPaths: ['/health'] }),
+  sveltekitRateLimit({ limiter, excludePaths: ['/health'] }),
   // … other handles
 )
 ```
 
-### Per-endpoint (in a +server.ts)
+### Accessing the result
 
 ```ts
-// src/routes/api/upload/+server.ts
-import { sveltekitAdapter } from '@tzezar/throtto/adapters/sveltekit'
-import { rateLimit } from '@tzezar/throtto'
-
-const uploadLimiter = rateLimit('10/minute')
-const rl = sveltekitAdapter({ limiter: uploadLimiter })
-
-export async function POST(event) {
-  const denied = await rl(event)
-  if (denied) return denied
-  // … handle upload
+// In a +server.ts or +page.server.ts
+export async function load({ locals }) {
+  // Available after the handle hook runs
+  const rateLimitResult = locals.rateLimitResult
+  // …
 }
 ```
 
@@ -287,36 +327,43 @@ export async function POST(event) {
 ## Remix
 
 ```ts
-import { remixAdapter } from '@tzezar/throtto/adapters/remix'
+import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
 ```
 
-Works with Remix loaders and actions.
+Wraps a Remix handler (loader or action). The handler receives `RemixArgs { request, params, context? }`.
 
-### Global middleware
+Signature: `withRemixRateLimit(config, handler)` → `(args: RemixArgs) => Promise<Response>`
 
-```ts
-// app/middleware.server.ts
-import { remixAdapter } from '@tzezar/throtto/adapters/remix'
-import { rateLimit } from '@tzezar/throtto'
-
-const limiter = rateLimit('100/minute')
-export const rateLimitMiddleware = remixAdapter({ limiter })
-```
-
-### Per-endpoint (in a loader or action)
+### Wrapping an action
 
 ```ts
 // app/routes/api.upload.tsx
-import { remixAdapter } from '@tzezar/throtto/adapters/remix'
+import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
 import { rateLimit } from '@tzezar/throtto'
 
-const uploadLimiter = remixAdapter({ limiter: rateLimit('10/minute') })
+const limiter = rateLimit('10/minute')
 
-export async function action({ request }: ActionFunctionArgs) {
-  const denied = await uploadLimiter(request)
-  if (denied) return denied
+export const action = withRemixRateLimit({ limiter }, async ({ request, params }) => {
   // … handle upload
-}
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+})
+```
+
+### Per-route with different limits
+
+```ts
+import { withRemixRateLimit } from '@tzezar/throtto/adapters/remix'
+import { rateLimit } from '@tzezar/throtto'
+
+export const action = withRemixRateLimit(
+  { limiter: rateLimit('5/15m') },
+  async ({ request }) => {
+    // … handle login
+    return new Response(JSON.stringify({ ok: true }))
+  },
+)
 
 export async function loader({ request }: LoaderFunctionArgs) {
   // no rate limiting on GET - only the action is limited
@@ -329,21 +376,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
 ## Astro
 
 ```ts
-import { astroAdapter } from '@tzezar/throtto/adapters/astro'
+import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
 ```
 
-Returns an Astro middleware `onRequest` handler.
+Returns an Astro middleware: `(ctx, next) => Promise<Response>`. Stores the rate-limit result in `ctx.locals.rateLimitResult`.
 
 ### Global middleware
 
 ```ts
 // src/middleware.ts
-import { astroAdapter } from '@tzezar/throtto/adapters/astro'
+import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
 import { rateLimit } from '@tzezar/throtto'
 
-export const onRequest = astroAdapter({
+export const onRequest = astroRateLimit({
   limiter: rateLimit('100/minute'),
-  skipPaths: ['/health'],
+  excludePaths: ['/health'],
 })
 ```
 
@@ -351,14 +398,14 @@ export const onRequest = astroAdapter({
 
 ```ts
 // src/pages/api/upload.ts
-import { astroAdapter } from '@tzezar/throtto/adapters/astro'
+import { astroRateLimit } from '@tzezar/throtto/adapters/astro'
 import { rateLimit } from '@tzezar/throtto'
 import type { APIRoute } from 'astro'
 
-const rl = astroAdapter({ limiter: rateLimit('10/minute') })
+const rl = astroRateLimit({ limiter: rateLimit('10/minute') })
 
-export const POST: APIRoute = async (context) => {
-  const denied = await rl(context)
+export const POST: APIRoute = async (context, next) => {
+  const denied = await rl(context, next)
   if (denied) return denied
   return new Response(JSON.stringify({ ok: true }))
 }
@@ -369,26 +416,47 @@ export const POST: APIRoute = async (context) => {
 ## NestJS
 
 ```ts
-import { nestjsAdapter } from '@tzezar/throtto/adapters/nestjs'
+import { createThrottleGuard, getThrottleMetadataKey, getSkipThrottleMetadataKey } from '@tzezar/throtto/adapters/nestjs'
 ```
 
-Can be used as a NestJS guard or middleware.
+Returns a guard function: `(context: NestExecutionContext) => Promise<boolean>`. Wrap it in an `@Injectable()` class implementing `CanActivate`.
 
-### Global middleware
+### As a global guard
 
 ```ts
-import { nestjsAdapter } from '@tzezar/throtto/adapters/nestjs'
+import { createThrottleGuard } from '@tzezar/throtto/adapters/nestjs'
 import { rateLimit } from '@tzezar/throtto'
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common'
 
-const limiter = rateLimit('100/minute')
-app.use(nestjsAdapter({ limiter }))
+const check = createThrottleGuard({ limiter: rateLimit('100/minute') })
+
+@Injectable()
+export class ThrottleGuard implements CanActivate {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    return check(context)
+  }
+}
+
+// main.ts
+app.useGlobalGuards(new ThrottleGuard())
 ```
 
 ### Per-endpoint (with decorators)
 
-```ts
-import { Throttle, SkipThrottle } from '@tzezar/throtto/decorators'
+Use `getThrottleMetadataKey()` and `getSkipThrottleMetadataKey()` with NestJS's `SetMetadata` to create custom decorators:
 
+```ts
+import { SetMetadata } from '@nestjs/common'
+import { getThrottleMetadataKey, getSkipThrottleMetadataKey } from '@tzezar/throtto/adapters/nestjs'
+
+export const Throttle = (config: { limit: string }) =>
+  SetMetadata(getThrottleMetadataKey(), config)
+
+export const SkipThrottle = () =>
+  SetMetadata(getSkipThrottleMetadataKey(), true)
+```
+
+```ts
 @Throttle({ limit: '100/minute' })
 @Controller('users')
 export class UsersController {
@@ -405,53 +473,45 @@ export class UsersController {
 }
 ```
 
-### Per-route (without decorators)
-
-```ts
-@Controller('api')
-export class ApiController {
-  @Post('upload')
-  async upload(@Req() req: Request, @Res() res: Response, @Next() next) {
-    const rl = nestjsAdapter({ limiter: rateLimit('10/minute') })
-    rl(req, res, next)
-  }
-}
-```
-
 ---
 
 ## Elysia (Bun)
 
 ```ts
-import { elysiaAdapter } from '@tzezar/throtto/adapters/elysia'
+import { elysiaRateLimit } from '@tzezar/throtto/adapters/elysia'
 ```
 
-Returns an Elysia plugin.
+Returns a handler function: `(ctx: ElysiaContext) => Promise<Response | undefined>`. Use with `app.onBeforeHandle()`. Returns `undefined` when the request is allowed, or a `Response` when denied.
 
 ### Global
 
 ```ts
 import { Elysia } from 'elysia'
-import { elysiaAdapter } from '@tzezar/throtto/adapters/elysia'
+import { elysiaRateLimit } from '@tzezar/throtto/adapters/elysia'
 import { rateLimit } from '@tzezar/throtto'
 
+const limiter = rateLimit('100/minute')
+
 const app = new Elysia()
-  .use(elysiaAdapter({ limiter: rateLimit('100/minute') }))
+  .onBeforeHandle(elysiaRateLimit({ limiter }))
   .listen(3000)
 ```
 
-### Per-endpoint (scoped plugin)
+### Per-endpoint (scoped)
 
 ```ts
+const apiHandler = elysiaRateLimit({ limiter: rateLimit('100/minute') })
+const authHandler = elysiaRateLimit({ limiter: rateLimit('5/15m') })
+
 const app = new Elysia()
   .group('/api', (app) =>
     app
-      .use(elysiaAdapter({ limiter: rateLimit('100/minute') }))
+      .onBeforeHandle(apiHandler)
       .get('/users', () => 'users')
   )
   .group('/auth', (app) =>
     app
-      .use(elysiaAdapter({ limiter: rateLimit('5/15m') }))
+      .onBeforeHandle(authHandler)
       .post('/login', () => 'login')
   )
   .listen(3000)
@@ -462,32 +522,37 @@ const app = new Elysia()
 ## H3 / Nitro (Nuxt)
 
 ```ts
-import { h3Adapter } from '@tzezar/throtto/adapters/h3'
+import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
 ```
 
-Returns an H3 event handler, compatible with Nuxt server middleware and standalone Nitro.
+Returns `(event: H3Event) => Promise<undefined | string>`. Returns `undefined` when the request is allowed, or a string response when denied. Compatible with Nuxt server middleware and standalone Nitro.
 
 ### Global (Nuxt server middleware)
 
 ```ts
 // server/middleware/rate-limit.ts
-import { h3Adapter } from '@tzezar/throtto/adapters/h3'
+import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
 import { rateLimit } from '@tzezar/throtto'
 
-export default h3Adapter({ limiter: rateLimit('100/minute') })
+const check = h3RateLimit({ limiter: rateLimit('100/minute') })
+
+export default defineEventHandler(async (event) => {
+  const denied = await check(event)
+  if (denied) return denied
+})
 ```
 
 ### Per-endpoint (Nuxt API route)
 
 ```ts
 // server/api/upload.post.ts
-import { h3Adapter } from '@tzezar/throtto/adapters/h3'
+import { h3RateLimit } from '@tzezar/throtto/adapters/h3'
 import { rateLimit } from '@tzezar/throtto'
 
-const rl = h3Adapter({ limiter: rateLimit('10/minute') })
+const check = h3RateLimit({ limiter: rateLimit('10/minute') })
 
 export default defineEventHandler(async (event) => {
-  const denied = await rl(event)
+  const denied = await check(event)
   if (denied) return denied
   return { ok: true }
 })
@@ -498,18 +563,20 @@ export default defineEventHandler(async (event) => {
 ## tRPC
 
 ```ts
-import { trpcAdapter } from '@tzezar/throtto/adapters/trpc'
+import { trpcRateLimit, TrpcRateLimitError } from '@tzezar/throtto/adapters/trpc'
 ```
 
-Returns a tRPC middleware for use in procedure chains.
+Returns a tRPC middleware: `(opts) => Promise<unknown>`. **`key` is required** — there is no default key resolver for tRPC since there's no standard way to extract an IP from the context.
+
+Throws `TrpcRateLimitError` on deny (not a `Response`).
 
 ```ts
-import { trpcAdapter } from '@tzezar/throtto/adapters/trpc'
+import { trpcRateLimit } from '@tzezar/throtto/adapters/trpc'
 import { rateLimit } from '@tzezar/throtto'
 
-const rateLimitMiddleware = trpcAdapter({
+const rateLimitMiddleware = trpcRateLimit({
   limiter: rateLimit('100/minute'),
-  key: (opts) => opts.ctx.user?.id ?? opts.ctx.ip ?? 'anon',
+  key: (ctx) => ctx.userId ?? ctx.ip ?? 'anon',
 })
 
 const protectedProcedure = t.procedure.use(rateLimitMiddleware)
@@ -518,8 +585,14 @@ const protectedProcedure = t.procedure.use(rateLimitMiddleware)
 ### Per-procedure (different limits)
 
 ```ts
-const generalLimit = trpcAdapter({ limiter: rateLimit('100/minute') })
-const strictLimit = trpcAdapter({ limiter: rateLimit('5/minute') })
+const generalLimit = trpcRateLimit({
+  limiter: rateLimit('100/minute'),
+  key: (ctx) => ctx.userId ?? 'anon',
+})
+const strictLimit = trpcRateLimit({
+  limiter: rateLimit('5/minute'),
+  key: (ctx) => ctx.userId ?? 'anon',
+})
 
 const router = t.router({
   listUsers: t.procedure
@@ -532,30 +605,49 @@ const router = t.router({
 })
 ```
 
+### Handling errors
+
+```ts
+import { TrpcRateLimitError } from '@tzezar/throtto/adapters/trpc'
+
+// In your error handler or client
+if (error instanceof TrpcRateLimitError) {
+  // error.retryAfter — seconds until the limit resets
+}
+```
+
 ---
 
 ## WebSocket
 
 ```ts
-import { wsAdapter } from '@tzezar/throtto/adapters/websocket'
+import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
 ```
 
-Rate-limits WebSocket messages rather than HTTP requests.
+Rate-limits WebSocket connections and messages. **`key` is required.** Returns an object with `checkConnection()`, `checkMessage()`, and `reset()` methods — completely different from the HTTP adapters.
 
 ```ts
-import { wsAdapter } from '@tzezar/throtto/adapters/websocket'
+import { createWebSocketLimiter } from '@tzezar/throtto/adapters/websocket'
 import { rateLimit } from '@tzezar/throtto'
 
-const limiter = rateLimit('60/minute')
-const rl = wsAdapter({ limiter })
+const wsLimiter = createWebSocketLimiter({
+  limiter: rateLimit('60/minute'),
+  key: (ws, req) => req.headers['x-forwarded-for'] ?? req.socket.remoteAddress ?? 'anon',
+})
 
 wss.on('connection', (ws, req) => {
+  const connectionResult = wsLimiter.checkConnection(ws, req)
+  if (!connectionResult.allowed) return ws.close(1008, 'Rate limited')
+
   ws.on('message', async (data) => {
-    const result = await rl(ws, req)
+    const result = await wsLimiter.checkMessage(ws, req)
     if (!result.allowed) return ws.close(1008, 'Rate limited')
     // … handle message
   })
 })
+
+// Reset a specific key's state
+wsLimiter.reset('some-key')
 ```
 
 ---
@@ -563,16 +655,16 @@ wss.on('connection', (ws, req) => {
 ## Koa
 
 ```ts
-import { koaAdapter } from '@tzezar/throtto/adapters/koa'
+import { koaRateLimit } from '@tzezar/throtto/adapters/koa'
 ```
 
 Returns standard Koa middleware: `(ctx, next) => Promise<void>`.
 
 ```ts
-import { koaAdapter } from '@tzezar/throtto/adapters/koa'
+import { koaRateLimit } from '@tzezar/throtto/adapters/koa'
 import { rateLimit } from '@tzezar/throtto'
 
-app.use(koaAdapter({
+app.use(koaRateLimit({
   limiter: rateLimit('100/minute'),
   skipPaths: ['/health'],
 }))
@@ -586,12 +678,12 @@ import Router from '@koa/router'
 const router = new Router()
 
 router.post('/api/login',
-  koaAdapter({ limiter: rateLimit('5/15m') }),
+  koaRateLimit({ limiter: rateLimit('5/15m') }),
   loginHandler,
 )
 
 router.get('/api/search',
-  koaAdapter({ limiter: rateLimit('30/minute') }),
+  koaRateLimit({ limiter: rateLimit('30/minute') }),
   searchHandler,
 )
 
@@ -603,15 +695,18 @@ app.use(router.routes())
 ## AWS Lambda
 
 ```ts
-import { lambdaAdapter } from '@tzezar/throtto/adapters/lambda'
+import { withLambdaRateLimit, lambdaRateLimitCheck } from '@tzezar/throtto/adapters/lambda'
 ```
 
-Wraps a Lambda handler with rate limiting. Best paired with a Redis or Upstash store for persistence across invocations.
+Two exports:
 
-### Single function
+- **`withLambdaRateLimit(config, handler)`** — wraps a Lambda handler: `(event) => Promise<APIGatewayResult>`. Best paired with a Redis or Upstash store for persistence across invocations.
+- **`lambdaRateLimitCheck(config, event)`** — standalone check: `Promise<APIGatewayResult | null>`. Returns `null` when allowed, or an `APIGatewayResult` when denied.
+
+### Wrapping a handler
 
 ```ts
-import { lambdaAdapter } from '@tzezar/throtto/adapters/lambda'
+import { withLambdaRateLimit } from '@tzezar/throtto/adapters/lambda'
 import { rateLimit } from '@tzezar/throtto'
 import { upstashStore } from '@tzezar/throtto/stores/upstash'
 
@@ -621,10 +716,29 @@ const limiter = rateLimit({
   store: upstashStore({ client }),
 })
 
-export const handler = lambdaAdapter({
-  limiter,
-  key: (event) => event.requestContext?.identity?.sourceIp ?? 'unknown',
-})
+export const handler = withLambdaRateLimit(
+  {
+    limiter,
+    key: (event) => event.requestContext?.identity?.sourceIp ?? 'unknown',
+  },
+  async (event) => {
+    // … handle request
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) }
+  },
+)
+```
+
+### Standalone check
+
+```ts
+import { lambdaRateLimitCheck } from '@tzezar/throtto/adapters/lambda'
+
+export const handler = async (event) => {
+  const denied = await lambdaRateLimitCheck({ limiter }, event)
+  if (denied) return denied
+  // … handle request
+  return { statusCode: 200, body: JSON.stringify({ ok: true }) }
+}
 ```
 
 ### Per-function (different Lambdas, different limits)
@@ -632,11 +746,15 @@ export const handler = lambdaAdapter({
 ```ts
 // lambdas/upload.ts
 const uploadLimiter = rateLimit({ limit: 10, window: '1m', store: upstashStore({ client }) })
-export const handler = lambdaAdapter({ limiter: uploadLimiter })
+export const handler = withLambdaRateLimit({ limiter: uploadLimiter }, async (event) => {
+  return { statusCode: 200, body: JSON.stringify({ ok: true }) }
+})
 
 // lambdas/search.ts
 const searchLimiter = rateLimit({ limit: 100, window: '1m', store: upstashStore({ client }) })
-export const handler = lambdaAdapter({ limiter: searchLimiter })
+export const handler = withLambdaRateLimit({ limiter: searchLimiter }, async (event) => {
+  return { statusCode: 200, body: JSON.stringify({ ok: true }) }
+})
 ```
 
 ---
@@ -644,24 +762,22 @@ export const handler = lambdaAdapter({ limiter: searchLimiter })
 ## Cloudflare Workers
 
 ```ts
-import { cfWorkersAdapter } from '@tzezar/throtto/adapters/cloudflare-workers'
+import { withCFRateLimit } from '@tzezar/throtto/adapters/cloudflare-workers'
 ```
 
-Works with the Workers `fetch` handler. Pairs well with Durable Objects or KV for distributed state.
+Wraps the Workers `fetch` handler: `(request, env, ctx) => Promise<Response>`. Pairs well with Durable Objects or KV for distributed state.
 
 ```ts
-import { cfWorkersAdapter } from '@tzezar/throtto/adapters/cloudflare-workers'
+import { withCFRateLimit } from '@tzezar/throtto/adapters/cloudflare-workers'
 import { rateLimit } from '@tzezar/throtto'
 
 const limiter = rateLimit('100/minute')
-const rl = cfWorkersAdapter({ limiter })
 
 export default {
-  async fetch(request: Request, env: Env) {
-    const denied = await rl(request, env)
-    if (denied) return denied
+  fetch: withCFRateLimit({ limiter }, async (request, env, ctx) => {
     // … handle request
-  },
+    return new Response('OK')
+  }),
 }
 ```
 
@@ -670,43 +786,59 @@ export default {
 ## Bun (native HTTP)
 
 ```ts
-import { bunAdapter } from '@tzezar/throtto/adapters/bun'
+import { bunRateLimit, withBunRateLimit } from '@tzezar/throtto/adapters/bun'
 ```
 
-For Bun's built-in `Bun.serve` - no framework needed.
+Two exports for Bun's built-in `Bun.serve` - no framework needed. Both receive `(req, server)` — the `server` parameter provides `requestIP()`.
 
-### Global
+- **`bunRateLimit(config)`** — returns `(req, server) => Promise<Response | null>`. Returns `null` when allowed.
+- **`withBunRateLimit(config, handler)`** — wraps a handler: `(req, server) => Promise<Response>`.
+
+### With `bunRateLimit`
 
 ```ts
-import { bunAdapter } from '@tzezar/throtto/adapters/bun'
+import { bunRateLimit } from '@tzezar/throtto/adapters/bun'
 import { rateLimit } from '@tzezar/throtto'
 
-const rl = bunAdapter({ limiter: rateLimit('100/minute') })
+const rl = bunRateLimit({ limiter: rateLimit('100/minute') })
 
 Bun.serve({
-  async fetch(req) {
-    const denied = await rl(req)
+  async fetch(req, server) {
+    const denied = await rl(req, server)
     if (denied) return denied
     return new Response('OK')
   },
 })
 ```
 
+### With `withBunRateLimit`
+
+```ts
+import { withBunRateLimit } from '@tzezar/throtto/adapters/bun'
+import { rateLimit } from '@tzezar/throtto'
+
+Bun.serve({
+  fetch: withBunRateLimit({ limiter: rateLimit('100/minute') }, async (req, server) => {
+    return new Response('OK')
+  }),
+})
+```
+
 ### Per-endpoint (path-based)
 
 ```ts
-const apiLimiter = bunAdapter({ limiter: rateLimit('100/minute') })
-const uploadLimiter = bunAdapter({ limiter: rateLimit('5/minute') })
+const apiLimiter = bunRateLimit({ limiter: rateLimit('100/minute') })
+const uploadLimiter = bunRateLimit({ limiter: rateLimit('5/minute') })
 
 Bun.serve({
-  async fetch(req) {
+  async fetch(req, server) {
     const url = new URL(req.url)
 
     if (url.pathname.startsWith('/api/upload')) {
-      const denied = await uploadLimiter(req)
+      const denied = await uploadLimiter(req, server)
       if (denied) return denied
     } else {
-      const denied = await apiLimiter(req)
+      const denied = await apiLimiter(req, server)
       if (denied) return denied
     }
 
@@ -720,40 +852,54 @@ Bun.serve({
 ## Deno
 
 ```ts
-import { denoAdapter } from '@tzezar/throtto/adapters/deno'
+import { denoRateLimit, withDenoRateLimit } from '@tzezar/throtto/adapters/deno'
 ```
 
-For `Deno.serve` - works with the standard `Request`/`Response` API.
+Two exports for `Deno.serve`. Both receive `(req, info)` where `info` has `remoteAddr`.
 
-### Global
+- **`denoRateLimit(config)`** — returns `(req, info) => Promise<Response | null>`. Returns `null` when allowed.
+- **`withDenoRateLimit(config, handler)`** — wraps a handler: `(req, info) => Promise<Response>`.
+
+### With `denoRateLimit`
 
 ```ts
-import { denoAdapter } from '@tzezar/throtto/adapters/deno'
+import { denoRateLimit } from '@tzezar/throtto/adapters/deno'
 import { rateLimit } from '@tzezar/throtto'
 
-const rl = denoAdapter({ limiter: rateLimit('100/minute') })
+const rl = denoRateLimit({ limiter: rateLimit('100/minute') })
 
-Deno.serve(async (req) => {
-  const denied = await rl(req)
+Deno.serve(async (req, info) => {
+  const denied = await rl(req, info)
   if (denied) return denied
   return new Response('OK')
 })
 ```
 
+### With `withDenoRateLimit`
+
+```ts
+import { withDenoRateLimit } from '@tzezar/throtto/adapters/deno'
+import { rateLimit } from '@tzezar/throtto'
+
+Deno.serve(withDenoRateLimit({ limiter: rateLimit('100/minute') }, async (req, info) => {
+  return new Response('OK')
+}))
+```
+
 ### Per-endpoint (path-based)
 
 ```ts
-const apiLimiter = denoAdapter({ limiter: rateLimit('100/minute') })
-const authLimiter = denoAdapter({ limiter: rateLimit('5/15m') })
+const apiLimiter = denoRateLimit({ limiter: rateLimit('100/minute') })
+const authLimiter = denoRateLimit({ limiter: rateLimit('5/15m') })
 
-Deno.serve(async (req) => {
+Deno.serve(async (req, info) => {
   const url = new URL(req.url)
 
   if (url.pathname.startsWith('/auth')) {
-    const denied = await authLimiter(req)
+    const denied = await authLimiter(req, info)
     if (denied) return denied
   } else {
-    const denied = await apiLimiter(req)
+    const denied = await apiLimiter(req, info)
     if (denied) return denied
   }
 
@@ -766,22 +912,43 @@ Deno.serve(async (req) => {
 ## Generic HTTP
 
 ```ts
-import { httpAdapter } from '@tzezar/throtto/adapters/http'
+import { createHttpRateLimiter, createHttpChecker } from '@tzezar/throtto/adapters/http'
 ```
 
-Works with any framework that uses the standard `Request`/`Response` API - including custom servers, test harnesses, and edge runtimes.
+Two exports for any framework that uses the standard `Request`/`Response` API - including custom servers, test harnesses, and edge runtimes.
+
+- **`createHttpRateLimiter(config)`** — returns `(req: Request) => Promise<Response | null>`. Returns `null` when allowed, or a deny `Response`.
+- **`createHttpChecker(config)`** — returns `(req: Request) => Promise<HttpRateLimitResult>`. Returns the raw result object for custom handling.
+
+### With `createHttpRateLimiter`
 
 ```ts
-import { httpAdapter } from '@tzezar/throtto/adapters/http'
+import { createHttpRateLimiter } from '@tzezar/throtto/adapters/http'
 import { rateLimit } from '@tzezar/throtto'
 
-const rl = httpAdapter({ limiter: rateLimit('100/minute') })
+const rl = createHttpRateLimiter({ limiter: rateLimit('100/minute') })
 
-// Use with any Request/Response handler
 async function handler(request: Request): Promise<Response> {
   const denied = await rl(request)
   if (denied) return denied
   return new Response('OK')
+}
+```
+
+### With `createHttpChecker`
+
+```ts
+import { createHttpChecker } from '@tzezar/throtto/adapters/http'
+import { rateLimit } from '@tzezar/throtto'
+
+const check = createHttpChecker({ limiter: rateLimit('100/minute') })
+
+async function handler(request: Request): Promise<Response> {
+  const result = await check(request)
+  if (!result.allowed) {
+    return new Response('Custom deny page', { status: 429, headers: result.headers })
+  }
+  return new Response('OK', { headers: result.headers })
 }
 ```
 
@@ -840,4 +1007,4 @@ function myAdapter(config: AdapterConfig) {
 | `toHeaders(result, { format? })` | Builds rate-limit headers (RFC 9309 `draft-7`, `draft-6`, or `legacy`) |
 | `toErrorBody(result, { format? })` | Returns a JSON error body (simple object or RFC 7807 problem detail) |
 
-All three are exported from `throtto/http` and are used internally by every built-in adapter.
+All three are exported from `@tzezar/throtto/http` and are used internally by every built-in adapter.

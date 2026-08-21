@@ -64,9 +64,9 @@ export function myAdapter(config: AdapterConfig) {
 
 | Utility | Import | Purpose |
 |---|---|---|
-| `shouldSkip(path, method, config)` | `throtto/http` | Check if request matches skipPaths/skipMethods |
-| `toHeaders(result, { format? })` | `throtto/http` | Generate RFC 9309 / draft-6 / legacy headers |
-| `toErrorBody(result, { format? })` | `throtto/http` | Generate simple or RFC 7807 error body |
+| `shouldSkip(path, method, config)` | `@tzezar/throtto/http` | Check if request matches skipPaths/skipMethods |
+| `toHeaders(result, { format? })` | `@tzezar/throtto/http` | Generate RFC 9309 / draft-6 / legacy headers |
+| `toErrorBody(result, { format? })` | `@tzezar/throtto/http` | Generate simple or RFC 7807 error body |
 
 ## Header formats
 

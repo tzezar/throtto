@@ -114,8 +114,8 @@ describe('rate limiting', () => {
   })
 
   it('handles store failures gracefully', async () => {
-    const { mockStore } = await import('throtto/testing')
-    const { rateLimit } = await import('throtto')
+    const { mockStore } = await import('@tzezar/throtto/testing')
+    const { rateLimit } = await import('@tzezar/throtto')
 
     const store = mockStore({ failAfter: 1 })
     const limiter = rateLimit({ limit: 10, window: '1m', store, failMode: 'open' })
