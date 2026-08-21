@@ -15,11 +15,16 @@ const limiter = pipe(
 )
 ```
 
-Transforms are applied left-to-right. Each wrapper takes a limiter and returns a new limiter.
+Transforms are applied left-to-right. Each wrapper receives the limiter produced by the previous step and returns a new limiter. The first argument is the base limiter, and subsequent arguments are curried wrappers:
+
+```
+pipe(base, A, B, C)  →  C(B(A(base)))
+                         ↑ outermost — checked first on each request
+```
+
+On each `check()`, the outermost wrapper runs first. If it short-circuits (e.g. allowlist match), inner wrappers never execute.
 
 ## Wrappers Reference
-
-For each wrapper, show: what it does, config, example with pipe(), example curried.
 
 ### withAllowlist
 Config: `{ allowlist?: string[], skip?: (ctx) => boolean | Promise<boolean> }`
@@ -33,6 +38,19 @@ All requests pass, but denials are still logged. Use to test configs before enfo
 Returns `OverrideLimiter` with: `setOverride(key, { action, reason?, expiresAt? })`, `removeOverride(key)`, `getOverride(key)`, `listOverrides()`, `clearOverrides()`
 Force allow/deny specific keys at runtime. Useful for ops: "unblock this VIP NOW".
 
+> **⚠️ Important:** `pipe()` returns a plain `Limiter` — the extra methods (`setOverride`, etc.) are not visible on the piped result. Configure overrides **before** piping, or keep a reference to the unwrapped override limiter:
+>
+> ```ts
+> const overridden = withOverride(rateLimit('100/minute'))
+> overridden.setOverride('vip', { action: 'allow' })
+>
+> // The piped result is just a Limiter — no .setOverride() on it
+> const limiter = pipe(overridden, withAllowlist({ allowlist: [] }))
+>
+> // To add overrides later, use the original reference:
+> overridden.setOverride('new-vip', { action: 'allow' })
+> ```
+
 ### withThresholds
 Config: `{ thresholds: [{ percent, onThreshold, once? }] }`
 Fire callbacks when usage crosses percentage levels (e.g., 80% warning, 95% critical).
@@ -41,12 +59,33 @@ Fire callbacks when usage crosses percentage levels (e.g., 80% warning, 95% crit
 Config: `{ softLimit, hardLimit, graceRequests?, onSoftLimit? }`
 Two-tier limiting: warn between soft and hard, deny beyond hard. Grace period optional.
 
-### withConditional
-Config: `{ reservationTtl?: number }`
-Adds `reserve(ctx)` → returns `Reservation` with `confirm()` / `cancel()`. Reserve capacity before committing.
+### withConditional (Reservations)
+Config: `{ reservationTtl?: number }` (default: 30000ms)
+
+Adds a `reserve(key)` method that checks **and holds** capacity. The caller then decides whether to `confirm()` (keep the slot consumed) or `cancel()` (refund it). Use this when you need to check the rate limit *before* an expensive operation and only "count" it if the operation succeeds.
+
+```ts
+import { rateLimit, withConditional } from '@tzezar/throtto'
+
+const limiter = withConditional(rateLimit('100/minute'), { reservationTtl: 10_000 })
+
+const reservation = await limiter.reserve('user-123')
+if (!reservation.allowed) {
+  return res.status(429).send('Rate limited')
+}
+
+try {
+  await doExpensiveWork()
+  await reservation.confirm()   // count this request
+} catch {
+  await reservation.cancel()    // refund — doesn't count against the limit
+}
+```
+
+Reservations auto-cancel after `reservationTtl` to prevent leaked capacity.
 
 ### withBatch
-Adds `checkMany(items: BatchItem[])` method for multi-key checks.
+Adds `checkMany(items: BatchItem[])` method for multi-key checks in a single call.
 
 ### withGracefulShutdown
 Config: `{ onNewRequest?: 'allow' | 'deny', drainTimeout?: number }`
@@ -54,14 +93,16 @@ Tracks in-flight operations, drains during shutdown.
 
 > **Note:** `withGracefulShutdown` has no curried overload and cannot be used in `pipe()`. Call it directly: `withGracefulShutdown(limiter, { ... })`.
 
-### withAnalytics (from throtto/analytics)
+### withAnalytics (from `@tzezar/throtto/analytics`)
 Config: `{ collector?, enableStream? }`
-Transparent metrics collection on every check. See Analytics docs.
+Transparent metrics collection on every check. See [Analytics docs](./analytics.md).
+
+> **Why a separate import?** Analytics pulls in the ring buffer collector, Prometheus formatter, and streaming infrastructure — code most users don't need. Keeping it in a separate entry point (`@tzezar/throtto/analytics`) ensures it's fully tree-shaken from bundles that don't use it.
 
 ## Advanced Limiters
 
 ### createCompoundLimiter
-Multi-layer: burst + minute + hour limits simultaneously. Each layer can use a different algorithm and store - they're fully independent limiters.
+Multi-layer: burst + minute + hour limits simultaneously. Each layer can use a different algorithm and store — they're fully independent limiters.
 ```ts
 const limiter = createCompoundLimiter([
   // Token bucket for burst tolerance
@@ -136,7 +177,7 @@ const limiter = createScheduledLimiter({
 ```
 
 ### createLazyLimiter
-Deferred initialization - useful for serverless cold starts. Factory is the first argument:
+Deferred initialization — useful for serverless cold starts. Factory is the first argument:
 ```ts
 const limiter = createLazyLimiter(
   async () => {

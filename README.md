@@ -244,7 +244,11 @@ const limiter = rateLimit({
 })
 ```
 
+> **String preset format:** `'{number}/{unit}'` where unit is `second`/`s`, `minute`/`m`, `hour`/`h`, or `day`/`d`. Custom windows like `'100/15m'` are not supported as strings — use `{ limit: 100, window: '15m' }` instead.
+
 ### `createLimiter()` - full control
+
+Use `createLimiter` when you need algorithm instances with custom parameters, hooks, or a key prefix. It's also the name to use when you import `rateLimit` from an adapter in the same file:
 
 ```ts
 import { createLimiter, tokenBucket, memoryStore } from '@tzezar/throtto'
@@ -462,7 +466,7 @@ const limiter = pipe(
 | `withOverride` | Force allow/deny keys at runtime |
 | `withThresholds` | Trigger callbacks at usage % levels |
 | `withSoftHardLimit` | Warn before hard cutoff |
-| `withConditional` | Skip limiting based on conditions |
+| `withConditional` | Reserve capacity, then confirm or cancel |
 | `withBatch` | Check multiple keys in one call |
 | `withGracefulShutdown` | Clean shutdown with timeout |
 | `withAnalytics` | Collect metrics on every check (import from `'@tzezar/throtto/analytics'`) |

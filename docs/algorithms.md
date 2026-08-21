@@ -437,6 +437,15 @@ if (result.allowed) {
 }
 ```
 
+> **⚠️ `reset()` means different things depending on the algorithm:**
+>
+> | Algorithm | `reset(key)` behavior |
+> |---|---|
+> | **Concurrency** | Releases one ticket (slot) for the key |
+> | **All others** | Clears ALL rate limit state for the key (full reset) |
+>
+> This is because concurrency tracks active slots, not request counts. "Resetting" a concurrency key means releasing the current operation's hold. For other algorithms, it means wiping the counter/bucket entirely.
+
 ### Low-Level Ticket Release
 
 When using `createLimiter()` directly, you get access to `releaseTicket` for fine-grained control:
