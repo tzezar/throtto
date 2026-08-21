@@ -192,6 +192,8 @@ const limiter = pipe(
 
 That's it. Pick an algorithm, a store, and a framework adapter - everything else is optional.
 
+> **Works everywhere** — `rateLimit()` and `createLimiter()` from `'@tzezar/throtto'` work in any JavaScript/TypeScript runtime (Node.js, Bun, Deno, edge) without a framework adapter. Adapters add framework-specific middleware integration but are never required.
+
 ---
 
 ## Algorithms
@@ -237,7 +239,7 @@ const limiter = rateLimit({
   algorithm: 'token-bucket',
   store: redisStore({ client }),
   normalizeKey: 'lowercase',
-  failMode: 'open',      // allow on store errors (default: 'closed')
+  failMode: 'open',      // allow on store errors (default: 'open')
   fallbackStore: memoryStore(),
 })
 ```

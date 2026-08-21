@@ -15,16 +15,26 @@ import type {
   Store,
   StoreEntry,
 } from '../core/types.js'
+import { rateLimit as presetRateLimit } from './presets.js'
 
 /**
  * Create a rate limiter instance.
  *
+ * Accepts either a preset string (e.g. '100/minute') or a full config object.
+ *
  * Orchestrates an algorithm, store, and configuration into a
  * ready-to-use limiter with check/consume/peek/reset/shutdown methods.
  */
+export function createLimiter(preset: string): Limiter
+export function createLimiter<TContext = string>(config: LimiterConfig<TContext>): Limiter<TContext>
 export function createLimiter<TContext = string>(
-  config: LimiterConfig<TContext>,
+  input: string | LimiterConfig<TContext>,
 ): Limiter<TContext> {
+  if (typeof input === 'string') {
+    return presetRateLimit(input) as Limiter<TContext>
+  }
+
+  const config = input
   const {
     algorithm,
     store,
@@ -34,7 +44,7 @@ export function createLimiter<TContext = string>(
     hooks,
     clock = realClock,
     normalizeKey,
-  } = config
+  } = config as LimiterConfig<TContext>
 
   if (!algorithm || typeof algorithm.check !== 'function') {
     throw new ConfigError('Invalid config: "algorithm" is required and must be a valid Algorithm.')

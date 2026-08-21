@@ -1,4 +1,5 @@
-import type { Limiter, RateLimitResult } from '../core/types.js'
+import { ConfigError } from '../core/errors.js'
+import type { Duration, Limiter, RateLimitResult, Store } from '../core/types.js'
 import { toErrorBody, toHeaders } from '../http/headers.js'
 import type { HeaderFormat } from '../http/headers.js'
 import { shouldSkip } from '../http/skip.js'
@@ -14,7 +15,24 @@ export interface CFExecutionContext {
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 export interface CloudflareAdapterConfig {
-  limiter: Limiter
+  /** Pre-created limiter instance. If not provided, one is created from limit/window. */
+  limiter?: Limiter | undefined
+  /** Shorthand: request limit. Required if limiter is not provided. */
+  limit?: number | undefined
+  /** Shorthand: window duration. Required if limit is provided. */
+  window?: Duration | undefined
+  /** Algorithm when creating inline limiter. Default: 'sliding-window-counter' */
+  algorithm?:
+    | 'sliding-window-counter'
+    | 'fixed-window'
+    | 'token-bucket'
+    | 'sliding-window-log'
+    | 'leaky-bucket'
+    | 'gcra'
+    | 'concurrency'
+    | undefined
+  /** Store when creating inline limiter. Default: memory */
+  store?: Store | undefined
   key?: ((req: Request) => string) | undefined
   cost?: number | ((req: Request) => number) | undefined
   headers?: boolean | undefined
@@ -29,11 +47,33 @@ export interface CloudflareAdapterConfig {
 
 // ─── Resolve Config ──────────────────────────────────────────────────────────
 
-function resolveConfig(input: CloudflareAdapterConfig | string): CloudflareAdapterConfig {
+function resolveConfig(
+  input: CloudflareAdapterConfig | string,
+): CloudflareAdapterConfig & { limiter: Limiter } {
   if (typeof input === 'string') {
     return { limiter: createInternalLimiter(input) }
   }
-  return input
+
+  const limiter =
+    input.limiter ??
+    (() => {
+      if (input.limit === undefined) {
+        throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
+      }
+      if (input.window === undefined) {
+        throw new ConfigError(
+          "'window' is required when using inline config. Example: { limit: 100, window: '1m' }",
+        )
+      }
+      return createInternalLimiter({
+        limit: input.limit,
+        window: input.window,
+        algorithm: input.algorithm,
+        store: input.store,
+      })
+    })()
+
+  return { ...input, limiter }
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -88,7 +128,7 @@ export function rateLimit(
 // ─── Check-Only Form ─────────────────────────────────────────────────────────
 
 function createCheckOnly(
-  config: CloudflareAdapterConfig,
+  config: CloudflareAdapterConfig & { limiter: Limiter },
 ): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response | null> {
   const {
     limiter,
@@ -141,7 +181,7 @@ function createCheckOnly(
 // ─── Handler Wrapper Form ────────────────────────────────────────────────────
 
 function createHandlerWrapper(
-  config: CloudflareAdapterConfig,
+  config: CloudflareAdapterConfig & { limiter: Limiter },
   handler: (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response>,
 ): (request: Request, env: unknown, ctx: CFExecutionContext) => Promise<Response> {
   const {

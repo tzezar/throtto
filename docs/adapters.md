@@ -87,9 +87,9 @@ All adapters that accept a config object support these shared options:
 | `key` | `(req) => string` | IP address | Custom key extraction function |
 | `skipPaths` | `string[]` | `[]` | Paths to bypass rate limiting |
 | `skipMethods` | `string[]` | `[]` | HTTP methods to bypass (e.g. `['OPTIONS']`) |
-| `headerFormat` | `'draft-6' \| 'legacy' \| 'none'` | `'draft-6'` | Rate limit header style |
+| `headerFormat` | `'draft-7' \| 'draft-6' \| 'legacy'` | `'draft-7'` | Rate limit header style |
 | `statusCode` | `number` | `429` | HTTP status when denied |
-| `onDeny` | `(req, result) => Response` | — | Custom deny response handler |
+| `onDeny` | varies by adapter | — | Custom deny response handler |
 
 When using a **string preset** like `'100/minute'`, this is shorthand for `{ limit: 100, window: '1m' }`.
 
@@ -97,7 +97,7 @@ Supported string preset formats:
 - `'100/minute'` or `'100/m'`
 - `'1000/hour'` or `'1000/h'`
 - `'10/second'` or `'10/s'`
-- `'5/15m'` (5 requests per 15 minutes)
+- `'5/minute'` or `'5/m'` (use config object with `window: '15m'` for custom windows)
 - `'10000/day'` or `'10000/d'`
 
 ---
@@ -111,7 +111,7 @@ import { rateLimit } from '@tzezar/throtto/adapters/express'
 app.use(rateLimit('100/minute'))
 
 // Per-route
-app.post('/login', rateLimit('5/15m'), handler)
+app.post('/login', rateLimit({ limit: 5, window: '15m' }), handler)
 ```
 
 Config object form:
@@ -139,7 +139,7 @@ app.addHook('onRequest', rateLimit('100/minute'))
 app.route({
   method: 'POST',
   url: '/login',
-  onRequest: rateLimit('5/15m'),
+  onRequest: rateLimit({ limit: 5, window: '15m' }),
   handler: loginHandler,
 })
 ```
@@ -308,7 +308,7 @@ const app = new Elysia()
     app.onBeforeHandle(rateLimit('200/minute'))
   )
   .group('/auth', (app) =>
-    app.onBeforeHandle(rateLimit('5/15m'))
+    app.onBeforeHandle(rateLimit({ limit: 5, window: '15m' }))
   )
 ```
 
@@ -355,7 +355,7 @@ Per-procedure with different limits:
 
 ```ts
 const strictLimit = rateLimit({
-  limiter: createLimiter('5/15m'),
+  limiter: createLimiter({ limit: 5, window: '15m' }),
   key: (ctx) => ctx.userId,
 })
 
@@ -414,7 +414,7 @@ app.use(rateLimit({
 Per-route with koa-router:
 
 ```ts
-router.post('/login', rateLimit('5/15m'), loginHandler)
+router.post('/login', rateLimit({ limit: 5, window: '15m' }), loginHandler)
 ```
 
 ---
@@ -560,12 +560,12 @@ app.use(rateLimit({ limiter, skipPaths: ['/health'] }))
 This works with every adapter. When you pass a `limiter`, the `limit` and `window` options are ignored (the limiter already has those configured):
 
 ```ts
-import { createLimiter, pipe, withBlocklist } from '@tzezar/throtto'
+import { createLimiter, pipe, withAllowlist } from '@tzezar/throtto'
 import { rateLimit } from '@tzezar/throtto/adapters/hono'
 
 const limiter = pipe(
   createLimiter('50/minute'),
-  withBlocklist({ blocklist: ['attacker-ip'] })
+  withAllowlist({ allowlist: ['trusted-ip'] })
 )
 
 app.use('*', rateLimit({ limiter }))
@@ -583,7 +583,8 @@ If your framework isn't listed, you can write an adapter in ~30 lines. The patte
 4. Inside: extract key → call `limiter.check(key)` → set headers → deny or continue
 
 ```ts
-import { createLimiter, resolvePreset } from '@tzezar/throtto'
+import { createLimiter } from '@tzezar/throtto'
+import { toHeaders } from '@tzezar/throtto/http'
 import type { Limiter, RateLimitResult } from '@tzezar/throtto'
 
 interface AdapterConfig {
@@ -598,8 +599,10 @@ interface AdapterConfig {
 type ConfigOrPreset = string | AdapterConfig
 
 export function rateLimit(config: ConfigOrPreset) {
-  const opts = typeof config === 'string' ? resolvePreset(config) : config
-  const limiter = opts.limiter ?? createLimiter({ limit: opts.limit!, window: opts.window! })
+  const limiter = typeof config === 'string'
+    ? createLimiter(config)
+    : config.limiter ?? createLimiter({ limit: config.limit!, window: config.window! })
+  const opts = typeof config === 'string' ? {} : config
 
   return async function middleware(req: Request): Promise<Response | null> {
     const url = new URL(req.url)
@@ -609,7 +612,7 @@ export function rateLimit(config: ConfigOrPreset) {
 
     const key = opts.key?.(req) ?? req.headers.get('x-forwarded-for') ?? '127.0.0.1'
     const result = await limiter.check(key)
-    const headers = result.headers() // returns standard rate-limit headers
+    const headers = toHeaders(result) // returns standard rate-limit headers
 
     if (!result.allowed) {
       return new Response('Too Many Requests', {
@@ -630,8 +633,8 @@ The core package exports helpers to simplify adapter authoring:
 
 | Utility | Purpose |
 |---------|---------|
-| `resolvePreset(str)` | Parses `'100/minute'` into `{ limit, window }` |
-| `result.headers()` | Returns a `Headers` object with rate-limit headers |
+| `createLimiter(preset)` | Accepts a string preset like `'100/minute'` or a config object |
+| `toHeaders(result)` | Returns a `Headers` object with rate-limit headers (from `@tzezar/throtto/http`) |
 | `result.retryAfter` | Seconds until the client can retry |
 | `result.remaining` | Remaining requests in the current window |
-| `result.reset` | Unix timestamp when the window resets |
+| `result.resetAt` | Unix timestamp when the window resets |

@@ -1,4 +1,6 @@
-import type { Limiter, RateLimitResult } from '../core/types.js'
+import { ConfigError } from '../core/errors.js'
+import type { Duration, Limiter, RateLimitResult, Store } from '../core/types.js'
+import { rateLimit as createInternalLimiter } from '../limiter/presets.js'
 
 // ─── tRPC Types ──────────────────────────────────────────────────────────────
 
@@ -12,7 +14,24 @@ export interface TrpcMiddlewareOptions<TContext> {
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 export interface TrpcAdapterConfig<TContext = unknown> {
-  limiter: Limiter
+  /** Pre-created limiter instance. If not provided, one is created from limit/window. */
+  limiter?: Limiter | undefined
+  /** Shorthand: request limit. Required if limiter is not provided. */
+  limit?: number | undefined
+  /** Shorthand: window duration. Required if limit is provided. */
+  window?: Duration | undefined
+  /** Algorithm when creating inline limiter. Default: 'sliding-window-counter' */
+  algorithm?:
+    | 'sliding-window-counter'
+    | 'fixed-window'
+    | 'token-bucket'
+    | 'sliding-window-log'
+    | 'leaky-bucket'
+    | 'gcra'
+    | 'concurrency'
+    | undefined
+  /** Store when creating inline limiter. Default: memory */
+  store?: Store | undefined
   /** Extract rate limit key from tRPC context */
   key: (ctx: TContext) => string
   /** Cost per procedure call. Default: 1 */
@@ -66,14 +85,26 @@ export class TrpcRateLimitError extends Error {
 export function rateLimit<TContext = unknown>(
   config: TrpcAdapterConfig<TContext>,
 ): (opts: TrpcMiddlewareOptions<TContext>) => Promise<unknown> {
-  const {
-    limiter,
-    key: keyResolver,
-    cost,
-    skip,
-    errorCode = 'TOO_MANY_REQUESTS',
-    errorMessage,
-  } = config
+  const limiter =
+    config.limiter ??
+    (() => {
+      if (config.limit === undefined) {
+        throw new ConfigError('Either "limiter" or "limit" (with "window") must be provided.')
+      }
+      if (config.window === undefined) {
+        throw new ConfigError(
+          "'window' is required when using inline config. Example: { limit: 100, window: '1m' }",
+        )
+      }
+      return createInternalLimiter({
+        limit: config.limit,
+        window: config.window,
+        algorithm: config.algorithm,
+        store: config.store,
+      })
+    })()
+
+  const { key: keyResolver, cost, skip, errorCode = 'TOO_MANY_REQUESTS', errorMessage } = config
 
   return async (opts: TrpcMiddlewareOptions<TContext>): Promise<unknown> => {
     const { ctx, next, path } = opts

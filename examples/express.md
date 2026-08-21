@@ -8,11 +8,11 @@ No separate limiter needed - the adapter creates one internally:
 
 ```ts
 import express from 'express'
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
 
 const app = express()
 
-app.use(expressRateLimit({
+app.use(rateLimit({
   limit: 100,
   window: '1m',
   skipPaths: ['/health', '/metrics'],
@@ -27,12 +27,12 @@ This creates a `sliding-window-counter` limiter with a `memoryStore` behind the 
 Create the limiter separately for more control or reuse:
 
 ```ts
-import { rateLimit } from '@tzezar/throtto'
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { createLimiter } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
 
-const limiter = rateLimit('100/minute')
+const limiter = createLimiter('100/minute')
 
-app.use(expressRateLimit({ limiter }))
+app.use(rateLimit({ limiter }))
 ```
 
 ## Way 3: Composition + custom config
@@ -40,18 +40,18 @@ app.use(expressRateLimit({ limiter }))
 Build a production-grade limiter with `pipe()`, then plug it in:
 
 ```ts
-import { rateLimit, pipe, withAllowlist, withDryRun } from '@tzezar/throtto'
-import { expressRateLimit } from '@tzezar/throtto/adapters/express'
+import { createLimiter, pipe, withAllowlist, withDryRun } from '@tzezar/throtto'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
 
 const limiter = pipe(
-  rateLimit('100/minute'),
+  createLimiter('100/minute'),
   withAllowlist({ allowlist: ['trusted-service'] }),
   withDryRun({
     onShadowDeny: (key, result) => console.log(`Would deny: ${key}`),
   }),
 )
 
-app.use(expressRateLimit({ limiter }))
+app.use(rateLimit({ limiter }))
 ```
 
 ## Custom key extraction
@@ -59,7 +59,7 @@ app.use(expressRateLimit({ limiter }))
 By default, the adapter uses `req.ip`. Override it:
 
 ```ts
-app.use(expressRateLimit({
+app.use(rateLimit({
   limiter,
   key: (req) => req.headers['x-api-key'] ?? req.ip ?? 'anon',
 }))
@@ -68,7 +68,7 @@ app.use(expressRateLimit({
 ## Custom deny handler
 
 ```ts
-app.use(expressRateLimit({
+app.use(rateLimit({
   limiter,
   onDeny: (req, res, result) => {
     res.status(429).json({
@@ -85,12 +85,12 @@ Apply different limits to different routes:
 
 ```ts
 app.post('/api/login',
-  expressRateLimit({ limit: 5, window: '15m' }),
+  rateLimit({ limit: 5, window: '15m' }),
   loginHandler,
 )
 
 app.get('/api/search',
-  expressRateLimit({ limit: 30, window: '1m' }),
+  rateLimit({ limit: 30, window: '1m' }),
   searchHandler,
 )
 ```
@@ -100,7 +100,7 @@ app.get('/api/search',
 Headers are sent automatically. Change the format:
 
 ```ts
-app.use(expressRateLimit({
+app.use(rateLimit({
   limit: 100,
   window: '1m',
   headerFormat: 'legacy',  // 'draft-7' (default) | 'draft-6' | 'legacy'
