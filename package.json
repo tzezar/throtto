@@ -148,7 +148,7 @@
     "typecheck": "tsc --noEmit",
     "bench": "node --import tsx/esm benchmarks/run.ts",
     "size": "tsup && node -e \"const fs=require('fs');const zlib=require('zlib');const f='dist/index.js';const s=zlib.gzipSync(fs.readFileSync(f)).length;console.log(f+': '+s+'B gzip');if(s>15000){process.exit(1)}\"",
-    "prepare": "lefthook install || true"
+    "prepare": "test -n \"$CI\" || lefthook install || true"
   },
   "bin": {
     "throtto": "./dist/cli/index.js"
