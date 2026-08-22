@@ -97,8 +97,8 @@ Supported string preset formats:
 - `'100/minute'` or `'100/m'`
 - `'1000/hour'` or `'1000/h'`
 - `'10/second'` or `'10/s'`
-- `'5/minute'` or `'5/m'` (use config object with `window: '15m'` for custom windows)
 - `'10000/day'` or `'10000/d'`
+- `'100/15m'` - custom durations (any parseable duration: `30s`, `6h`, `1h30m`, etc.)
 
 ---
 

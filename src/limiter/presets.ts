@@ -67,23 +67,23 @@ const UNIT_MAP: Record<string, number> = {
 }
 
 /**
- * Parse a preset string like '100/minute' or '1000/hour'.
+ * Parse a preset string like '100/minute', '1000/hour', or '100/15m'.
  */
 function parsePresetString(preset: string): { limit: number; windowMs: number } {
-  const match = preset.match(/^(\d+)\s*\/\s*(\w+)$/)
+  const match = preset.match(/^(\d+)\s*\/\s*(.+)$/)
   if (!match) {
     throw new ConfigError(
-      `Invalid preset format: '${preset}'. Expected format like '100/minute', '1000/hour', '10/second'.`,
+      `Invalid preset format: '${preset}'. Expected format like '100/minute', '50/30s', '1000/6h'.`,
     )
   }
 
   const limit = Number.parseInt(match[1]!, 10)
-  const unit = match[2]!.toLowerCase()
-  const windowMs = UNIT_MAP[unit]
+  const unit = match[2]!.toLowerCase().trim()
+  const windowMs = UNIT_MAP[unit] ?? tryParseDuration(unit)
 
   if (!windowMs) {
     throw new ConfigError(
-      `Invalid time unit: '${unit}'. Use: second, minute, hour, day (or s, m, h, d).`,
+      `Invalid time unit: '${unit}'. Use: second, minute, hour, day (or duration like 15m, 30s, 6h, 1h30m).`,
     )
   }
 
@@ -92,6 +92,16 @@ function parsePresetString(preset: string): { limit: number; windowMs: number } 
   }
 
   return { limit, windowMs }
+}
+
+/** Try parseDuration, return undefined on failure instead of throwing. */
+function tryParseDuration(value: string): number | undefined {
+  try {
+    const ms = parseDuration(value as Duration)
+    return ms > 0 ? ms : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /**

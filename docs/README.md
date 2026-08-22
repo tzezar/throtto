@@ -79,12 +79,25 @@ app.use(rateLimit({ limiter }))
 
 ## String Preset Format
 
-> **Limitation:** String presets only support `{number}/{unit}` where unit is one of: `second` (`s`), `minute` (`m`), `hour` (`h`), `day` (`d`).
->
-> ✅ `'100/minute'`, `'10/s'`, `'1000/h'`, `'5000/day'`
-> ❌ `'100/15m'`, `'50/30s'` - custom windows don't work as strings
->
-> For custom windows, use the object form: `{ limit: 100, window: '15m' }`
+String presets support `{number}/{duration}` where duration is any parseable time value:
+
+```ts
+// Named units
+rateLimit('100/minute')    // 100 per 1 minute
+rateLimit('1000/hour')     // 1000 per 1 hour
+rateLimit('10/second')     // 10 per 1 second
+rateLimit('5000/day')      // 5000 per 1 day
+
+// Short units
+rateLimit('100/m')         // 100 per 1 minute
+rateLimit('10/s')          // 10 per 1 second
+
+// Custom durations
+rateLimit('100/15m')       // 100 per 15 minutes
+rateLimit('50/30s')        // 50 per 30 seconds
+rateLimit('1000/6h')       // 1000 per 6 hours
+rateLimit('500/1h30m')     // 500 per 90 minutes
+```
 
 ## Duration Format
 

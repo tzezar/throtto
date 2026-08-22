@@ -52,6 +52,55 @@ describe('rateLimit presets', () => {
     })
   })
 
+  describe('custom duration presets', () => {
+    it('parses "100/15m" (100 per 15 minutes)', async () => {
+      const limiter = rateLimit('100/15m')
+      const result = await limiter.check('user:1')
+      expect(result.allowed).toBe(true)
+      expect(result.limit).toBe(100)
+      await limiter.shutdown()
+    })
+
+    it('parses "50/30s" (50 per 30 seconds)', async () => {
+      const limiter = rateLimit('50/30s')
+      const result = await limiter.check('user:1')
+      expect(result.limit).toBe(50)
+      await limiter.shutdown()
+    })
+
+    it('parses "1000/6h" (1000 per 6 hours)', async () => {
+      const limiter = rateLimit('1000/6h')
+      const result = await limiter.check('user:1')
+      expect(result.limit).toBe(1000)
+      await limiter.shutdown()
+    })
+
+    it('parses "500/1h30m" (500 per 90 minutes)', async () => {
+      const limiter = rateLimit('500/1h30m')
+      const result = await limiter.check('user:1')
+      expect(result.limit).toBe(500)
+      await limiter.shutdown()
+    })
+
+    it('parses "10/500ms" (10 per 500ms)', async () => {
+      const limiter = rateLimit('10/500ms')
+      const result = await limiter.check('user:1')
+      expect(result.limit).toBe(10)
+      await limiter.shutdown()
+    })
+
+    it('existing presets still work alongside custom durations', async () => {
+      const l1 = rateLimit('100/minute')
+      const l2 = rateLimit('100/1m')
+      const r1 = await l1.check('user:1')
+      const r2 = await l2.check('user:1')
+      expect(r1.limit).toBe(100)
+      expect(r2.limit).toBe(100)
+      await l1.shutdown()
+      await l2.shutdown()
+    })
+  })
+
   describe('with options', () => {
     it('accepts custom store', async () => {
       const store = memoryStore({ cleanupInterval: 0 })

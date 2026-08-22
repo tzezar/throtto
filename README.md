@@ -277,7 +277,7 @@ const limiter = rateLimit({
 })
 ```
 
-> **String preset format:** `'{number}/{unit}'` where unit is `second`/`s`, `minute`/`m`, `hour`/`h`, or `day`/`d`. Custom windows like `'100/15m'` are not supported as strings - use `{ limit: 100, window: '15m' }` instead.
+> **String preset format:** `'{number}/{duration}'` where duration is a named unit (`second`, `minute`, `hour`, `day`) or any parseable duration (`15m`, `30s`, `6h`, `1h30m`). Examples: `'100/minute'`, `'50/30s'`, `'1000/6h'`.
 
 ### `createLimiter()` - full control
 
