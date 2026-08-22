@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0](https://github.com/tzezar/throtto/compare/v2.0.0...v2.1.0) (2026-08-22)
+
+
+### Features
+
+* support custom durations in string presets ('100/15m') ([41dbc12](https://github.com/tzezar/throtto/commit/41dbc12b2d0cfa0da12656496d957c1d5ebadef9)), closes [#7](https://github.com/tzezar/throtto/issues/7)
+
 ## [2.0.0](https://github.com/tzezar/throtto/compare/v1.1.0...v2.0.0) (2026-08-21)
 
 
