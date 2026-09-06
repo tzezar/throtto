@@ -10,6 +10,7 @@ export default defineConfig({
     'stores/postgres': 'src/stores/postgres.ts',
     'stores/mysql': 'src/stores/mysql.ts',
     'stores/sqlite': 'src/stores/sqlite.ts',
+    'stores/cluster/index': 'src/stores/cluster/index.ts',
     'stores/schemas/index': 'src/stores/schemas/index.ts',
     // ─── HTTP ─────────────────────────────────────────────────────────────
     'http/index': 'src/http/index.ts',
@@ -39,7 +40,7 @@ export default defineConfig({
     // ─── Extras ───────────────────────────────────────────────────────────
     'analytics/index': 'src/analytics/index.ts',
   },
-  external: ['ioredis', '@upstash/redis', 'pg', 'mysql2', 'better-sqlite3'],
+  external: ['ioredis', '@upstash/redis', 'pg', 'mysql2', 'better-sqlite3', 'node:cluster'],
   format: ['esm'],
   dts: true,
   clean: true,

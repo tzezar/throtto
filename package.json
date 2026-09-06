@@ -41,6 +41,10 @@
       "types": "./dist/stores/sqlite.d.ts",
       "default": "./dist/stores/sqlite.js"
     },
+    "./stores/cluster": {
+      "types": "./dist/stores/cluster/index.d.ts",
+      "default": "./dist/stores/cluster/index.js"
+    },
     "./schemas": {
       "types": "./dist/stores/schemas/index.d.ts",
       "default": "./dist/stores/schemas/index.js"
@@ -194,6 +198,7 @@
     "token-bucket",
     "sliding-window",
     "leaky-bucket",
+    "cluster",
     "gcra",
     "rate-limiter",
     "concurrency",
