@@ -217,7 +217,7 @@ If Redis is down but a key was recently cached locally, the local cache still se
 | Guide | What you'll learn |
 |---|---|
 | [Algorithms](./algorithms.md) | All 7 algorithms - when to use each, config, trade-offs |
-| [Storage Adapters](./stores.md) | Memory, Redis, Upstash, PostgreSQL, MySQL, SQLite - setup & comparison |
+| [Storage Adapters](./stores.md) | Memory, Cluster, Redis, Upstash, PostgreSQL, MySQL, SQLite - setup & comparison |
 | [Framework Adapters](./adapters.md) | Express, Fastify, Hono, Next.js + 14 more - middleware setup |
 | [Composition](./composition.md) | `pipe()`, wrappers (allowlist, dry-run, override, etc.), advanced limiters |
 | [Patterns](./patterns.md) | throttle, debounce, penalty box, quota, cost mapping, backpressure |
@@ -254,7 +254,7 @@ If Redis is down but a key was recently cached locally, the local cache still se
 
 ### Stores
 
-`memoryStore`, `redisStore`, `upstashStore`, `postgresStore`, `mysqlStore`, `sqliteStore`, `withCache`
+`memoryStore`, `clusterStore`, `redisStore`, `upstashStore`, `postgresStore`, `mysqlStore`, `sqliteStore`, `withCache`
 
 ### Wrappers
 

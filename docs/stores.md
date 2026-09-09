@@ -35,6 +35,7 @@ interface StoreEntry {
 | Store | Peer Dep | Distributed | Persistence | Atomic | Cleanup | Best For |
 |---|---|---|---|---|---|---|
 | **Memory** | None | No | No | Yes | Auto | Dev, single-process |
+| **Cluster** | None | Single host | No | Yes (primary-owned) | Auto | Node cluster / PM2, no Redis |
 | **Redis** | `ioredis` | Yes | Optional | Yes (Lua CAS) | TTL-based | Production multi-instance |
 | **Upstash** | `@upstash/redis` | Yes | Yes | Yes (Lua CAS) | TTL-based | Serverless, edge |
 | **PostgreSQL** | `pg` | Yes | Yes | Yes (`FOR UPDATE`) | Manual / auto | Already have Postgres |
@@ -67,6 +68,155 @@ const store = memoryStore({
 - Passive TTL check on every `get()` - expired entries return `null` and are deleted.
 - Active cleanup runs on an interval to reclaim memory from entries that expired without being read.
 - Set `cleanupInterval: 0` in tests or serverless functions to avoid dangling timers.
+
+---
+
+## Cluster Store
+
+Shares rate limit state across Node.js cluster workers over the IPC channel they already have - no Redis, no extra infrastructure.
+
+```ts
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
+
+const store = clusterStore({
+  maxEntries: 10_000,   // LRU limit on the primary (default: Infinity)
+})
+
+const limiter = rateLimit({ limit: 100, window: '1m', store })
+```
+
+The same call runs in the primary and in every worker - the role is detected automatically.
+
+**Install:** nothing. It ships as a separate entry point so `node:cluster` is never pulled into browser, edge, or serverless bundles.
+
+### Why
+
+In a cluster, each worker has its own heap. With `memoryStore()` a limit of 100 becomes `N x 100` - one bucket per worker. The cluster store keeps a single bucket on the primary.
+
+```ts
+import cluster from 'node:cluster'
+import { availableParallelism } from 'node:os'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
+
+const store = clusterStore({ maxEntries: 50_000 })
+
+if (cluster.isPrimary) {
+  // The primary only holds state - it answers worker requests over IPC.
+  await store.ready()
+  for (let i = 0; i < availableParallelism(); i++) cluster.fork()
+} else {
+  const app = express()
+  app.use(rateLimit({ limit: 100, window: '1m', store }))
+  app.listen(3000)
+}
+```
+
+### How it works
+
+| Side | Responsibility |
+|---|---|
+| Primary | Owns the state, applies every write, sweeps expired entries, enforces the LRU |
+| Worker | Proxies `get`/`set`/`atomic` over IPC and awaits the reply |
+
+Writes take one of two paths:
+
+- **Optimistic (1 round trip).** Every mutation on the primary bumps a monotonic version. A worker remembers the version it last wrote and folds read and write into a single compare-and-swap. This is the normal case.
+- **Fair (2 round trips).** Once a key shows contention, the worker stops guessing and takes a FIFO turn on the primary: `lock` -> run the algorithm -> `commit`. Competing workers queue instead of starving each other, and no update is ever lost.
+
+Because the primary is single-threaded, its event loop serializes every write - there is no distributed locking and no retry storm. A worker that dies mid-update has its lock force-released after `lockTimeout`.
+
+### Performance
+
+Measured on Node 22 with 4 forked workers (`tests/fixtures/cluster-harness.ts`):
+
+| Scenario | Per-check overhead |
+|---|---|
+| Distinct keys per worker (typical) | ~0.05 ms |
+| Every worker on one hot key | ~0.15 - 0.4 ms |
+
+### Options
+
+```ts
+const store = clusterStore({
+  maxEntries: 10_000,      // LRU limit on the primary (default: Infinity)
+  cleanupInterval: 60_000, // primary sweep for expired entries (default: 60000, 0 = off)
+  onEviction: (key) => {}, // fired on the primary
+
+  role: 'worker',          // override auto-detection (default: auto)
+  namespace: 'api',        // isolate multiple stores on one IPC channel (default: 'default')
+
+  timeout: 1000,           // ms to wait for a primary reply (default: 1000)
+  lockTimeout: 1000,       // ms before a held key lock is force-released (default: 1000)
+  maxRetries: 3,           // commit attempts on a contended key (default: 3)
+  cacheEntries: 1000,      // worker-side version cache size (default: 1000)
+
+  onUnreachable: 'local',  // 'local' | 'error' (default: 'local')
+  retryInterval: 5000,     // ms to stay degraded before probing again (default: 5000)
+  onDegraded: (error) => console.warn('cluster primary unreachable', error),
+  onRecovered: () => console.info('cluster primary back'),
+
+  transport: myTransport,  // custom IPC bus (see below)
+})
+```
+
+The returned store adds three members on top of the `Store` interface:
+
+```ts
+await store.ready()   // resolves once this process is wired to the IPC channel
+store.isPrimary       // true when this process owns the state
+store.degraded        // true while a worker is running on local fallback state
+```
+
+### Graceful degradation
+
+If the primary stops answering - it crashed, is blocked, or the channel closed - a worker does **not** hang:
+
+| `onUnreachable` | Behaviour |
+|---|---|
+| `'local'` (default) | Falls back to a per-worker in-memory store. Limits are still enforced, just per worker instead of globally. |
+| `'error'` | Throws a `StoreError`, so the limiter's own `failMode` (`'open'` or `'closed'`) decides. |
+
+After degrading, the worker skips IPC entirely for `retryInterval` ms, then probes again. A successful reply clears the degraded flag and fires `onRecovered`.
+
+```ts
+const store = clusterStore({ onUnreachable: 'error' })
+
+const limiter = createLimiter({
+  algorithm: slidingWindowCounter({ limit: 100, window: '1m' }),
+  store,
+  failMode: 'closed',   // reject requests rather than let them through unlimited
+})
+```
+
+### PM2 and other topologies
+
+PM2's cluster mode forks real cluster workers, but the process that owns the IPC channel is the PM2 daemon, not your code - so there is no primary running `clusterStore()` to answer. Two options:
+
+1. **Run your own primary.** Start a single PM2 process (`-i 1`) that forks workers with `node:cluster` itself. This is the plain Node setup above and needs no extra configuration.
+2. **Plug in a transport.** Anything that can carry request/response messages works:
+
+```ts
+import type { ClusterTransport } from '@tzezar/throtto/stores/cluster'
+
+const transport: ClusterTransport = {
+  role: 'worker',
+  listen(handler) {},                       // primary: receive requests, reply via peer.send()
+  subscribe(handler) { bus.on('msg', handler) }, // worker: receive replies
+  send(message) { return bus.publish(message) }, // worker: send a request
+  isConnected() { return bus.connected },
+  close() { bus.off('msg') },
+}
+
+const store = clusterStore({ transport })
+```
+
+The same hook is how `child_process.fork()` trees, `MessagePort`, and the in-process test double are supported.
+
+**Notes:**
+- State lives in one process's memory: it is shared across workers on **one host**, not across machines. Use Redis for multi-host deployments.
+- Messages are plain JSON-serializable objects, so both Node's default IPC serialization and `advanced` (structured clone) work unchanged.
+- Data is lost when the primary restarts, exactly like the memory store.
 
 ---
 
@@ -435,6 +585,7 @@ All built-in stores implement `atomic()` - race-free read-modify-write in a sing
 | Store | Mechanism |
 |-------|----------|
 | Memory | Synchronous updater (single-process, no race possible) |
+| Cluster | Versioned CAS on the primary, with a FIFO key lock for contended keys |
 | Redis | Lua compare-and-swap script with retries |
 | Upstash | Lua CAS via REST API |
 | PostgreSQL | `SELECT ... FOR UPDATE` (row-level lock) |

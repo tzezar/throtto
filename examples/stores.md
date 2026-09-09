@@ -24,6 +24,45 @@ const store = memoryStore({
 })
 ```
 
+## Cluster (Node.js cluster / PM2)
+
+One shared limit across every worker on a host, without adding Redis:
+
+```ts
+import cluster from 'node:cluster'
+import { availableParallelism } from 'node:os'
+import express from 'express'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
+
+// Same call in the primary and in every worker - the role is auto-detected.
+const store = clusterStore({ maxEntries: 50_000 })
+
+if (cluster.isPrimary) {
+  // The primary just holds state and answers worker requests over IPC.
+  await store.ready()
+  for (let i = 0; i < availableParallelism(); i++) cluster.fork()
+} else {
+  const app = express()
+  app.use(rateLimit({ limit: 100, window: '1m', store }))
+  app.listen(3000)
+}
+```
+
+Without it, a limit of 100 becomes `workers x 100` - each worker has its own heap.
+
+If the primary becomes unreachable, workers degrade to their own in-memory state by default:
+
+```ts
+const store = clusterStore({
+  onUnreachable: 'local',  // or 'error' to let failMode decide
+  onDegraded: (error) => console.warn('cluster primary unreachable', error),
+  onRecovered: () => console.info('cluster primary back'),
+})
+```
+
+See [docs/stores.md](../docs/stores.md#cluster-store) for the IPC protocol, tuning options, and PM2 notes.
+
 ## Redis
 
 Production multi-instance deployments:
