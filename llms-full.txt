@@ -309,6 +309,7 @@ await limiter.shutdown({ timeout: 5000 })
 | Store | Use Case | Distributed | Persistence |
 | -------------- | --------------------------------- | ----------- | ----------- |
 | **Memory** | Development, single-process | No | No |
+| **Cluster** | Node cluster / PM2 on one host | Workers | No |
 | **Redis** | Production, multi-instance | Yes | Optional |
 | **Upstash** | Serverless, edge | Yes | Yes |
 | **PostgreSQL** | Already have Postgres | Yes | Yes |
@@ -317,6 +318,7 @@ await limiter.shutdown({ timeout: 5000 })
 
 ```ts
 import { memoryStore } from '@tzezar/throtto/stores/memory'
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
 import { redisStore } from '@tzezar/throtto/stores/redis'
 import { upstashStore } from '@tzezar/throtto/stores/upstash'
 import { postgresStore } from '@tzezar/throtto/stores/postgres'
@@ -1245,7 +1247,7 @@ If Redis is down but a key was recently cached locally, the local cache still se
 
 ### Stores
 
-`memoryStore`, `redisStore`, `upstashStore`, `postgresStore`, `mysqlStore`, `sqliteStore`, `withCache`
+`memoryStore`, `clusterStore`, `redisStore`, `upstashStore`, `postgresStore`, `mysqlStore`, `sqliteStore`, `withCache`
 
 ### Wrappers
 
@@ -1924,6 +1926,7 @@ interface StoreEntry {
 | Store | Peer Dep | Distributed | Persistence | Atomic | Cleanup | Best For |
 |---|---|---|---|---|---|---|
 | **Memory** | None | No | No | Yes | Auto | Dev, single-process |
+| **Cluster** | None | Single host | No | Yes (primary-owned) | Auto | Node cluster / PM2, no Redis |
 | **Redis** | `ioredis` | Yes | Optional | Yes (Lua CAS) | TTL-based | Production multi-instance |
 | **Upstash** | `@upstash/redis` | Yes | Yes | Yes (Lua CAS) | TTL-based | Serverless, edge |
 | **PostgreSQL** | `pg` | Yes | Yes | Yes (`FOR UPDATE`) | Manual / auto | Already have Postgres |
@@ -1956,6 +1959,84 @@ const store = memoryStore({
 - Passive TTL check on every `get()` - expired entries return `null` and are deleted.
 - Active cleanup runs on an interval to reclaim memory from entries that expired without being read.
 - Set `cleanupInterval: 0` in tests or serverless functions to avoid dangling timers.
+
+---
+
+## Cluster Store
+
+Shares rate limit state across Node.js cluster workers over the IPC channel they already have - no Redis, no extra infrastructure.
+
+```ts
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
+
+const store = clusterStore({
+  maxEntries: 10_000,   // LRU limit on the primary (default: Infinity)
+})
+
+const limiter = rateLimit({ limit: 100, window: '1m', store })
+```
+
+The same call runs in the primary and in every worker - the role is detected automatically.
+
+**Install:** nothing. It ships as a separate entry point so `node:cluster` is never pulled into browser, edge, or serverless bundles.
+
+**Why:** in a cluster each worker has its own heap, so `memoryStore()` turns a limit of 100 into `N x 100`. The cluster store keeps a single bucket on the primary.
+
+```ts
+import cluster from 'node:cluster'
+import { availableParallelism } from 'node:os'
+import { rateLimit } from '@tzezar/throtto/adapters/express'
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
+
+const store = clusterStore({ maxEntries: 50_000 })
+
+if (cluster.isPrimary) {
+  await store.ready()
+  for (let i = 0; i < availableParallelism(); i++) cluster.fork()
+} else {
+  const app = express()
+  app.use(rateLimit({ limit: 100, window: '1m', store }))
+  app.listen(3000)
+}
+```
+
+**How it works:** the primary owns the state and applies every write; workers proxy `get`/`set`/`atomic` over IPC. Uncontended keys cost one round trip (versioned compare-and-swap from a worker-side cache). Once a key shows contention the worker takes a FIFO turn on the primary (`lock` -> run algorithm -> `commit`), so workers queue instead of starving each other and no update is lost. A worker that dies mid-update has its lock force-released after `lockTimeout`.
+
+**Performance:** ~0.05ms per check on distinct keys, ~0.15-0.4ms when every worker hits one hot key (Node 22, 4 workers).
+
+**Options:**
+
+```ts
+const store = clusterStore({
+  maxEntries: 10_000,      // LRU limit on the primary (default: Infinity)
+  cleanupInterval: 60_000, // primary sweep for expired entries (default: 60000, 0 = off)
+  onEviction: (key) => {}, // fired on the primary
+  role: 'worker',          // override auto-detection (default: auto)
+  namespace: 'api',        // isolate multiple stores on one IPC channel (default: 'default')
+  timeout: 1000,           // ms to wait for a primary reply (default: 1000)
+  lockTimeout: 1000,       // ms before a held key lock is force-released (default: 1000)
+  maxRetries: 3,           // commit attempts on a contended key (default: 3)
+  cacheEntries: 1000,      // worker-side version cache size (default: 1000)
+  onUnreachable: 'local',  // 'local' | 'error' (default: 'local')
+  retryInterval: 5000,     // ms to stay degraded before probing again (default: 5000)
+  onDegraded: (error) => {},
+  onRecovered: () => {},
+  transport: myTransport,  // custom IPC bus
+})
+
+await store.ready()   // resolves once wired to the IPC channel
+store.isPrimary       // true when this process owns the state
+store.degraded        // true while a worker is on local fallback state
+```
+
+**Graceful degradation:** if the primary stops answering, `onUnreachable: 'local'` (default) falls back to a per-worker in-memory store, while `'error'` throws a `StoreError` so the limiter's `failMode` decides. The worker then skips IPC for `retryInterval` ms before probing again.
+
+**PM2:** PM2's daemon owns the IPC channel, so no primary is running `clusterStore()` to answer. Either run a single PM2 process that forks its own `node:cluster` workers, or supply a custom `transport`.
+
+**Notes:**
+- State lives in one process's memory: shared across workers on **one host**, not across machines. Use Redis for multi-host.
+- Messages are plain JSON-serializable objects, so both default and `advanced` IPC serialization work.
+- Data is lost when the primary restarts, exactly like the memory store.
 
 ---
 

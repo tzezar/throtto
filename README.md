@@ -47,7 +47,7 @@
 ## Features
 
 - 🔒 **7 algorithms** - Fixed Window, Sliding Window (Counter + Log), Token Bucket, Leaky Bucket, GCRA, Concurrency
-- 🏪 **6 storage adapters** - Memory, Redis, Upstash, PostgreSQL, MySQL, SQLite
+- 🏪 **7 storage adapters** - Memory, Cluster (IPC), Redis, Upstash, PostgreSQL, MySQL, SQLite
 - 🔌 **18 framework adapters** - Express, Fastify, Hono, Next.js, SvelteKit, Remix, Astro, NestJS, Elysia, H3, tRPC, WebSocket, Koa, Lambda, CloudFlare Workers, Bun, Deno, Generic HTTP
 - 🎯 **Functional composition** - `pipe()` limiters, wrappers, and patterns like building blocks
 - 🛡️ **Production-grade** - allowlists, dry-run, overrides, thresholds, backpressure, penalty box, graceful shutdown
@@ -89,6 +89,7 @@ Compared against the 6 most popular npm rate limiting packages. ✅ = built-in, 
 | Feature | **throtto** | rate-limiter-flexible | express-rate-limit | @upstash/ratelimit | @nestjs/throttler | bottleneck | limiter |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Memory | ✅ | ✅ | ✅ | | ✅ | ✅ | ✅ |
+| Node cluster (IPC, no Redis) | ✅ | ✅ | | | | | |
 | Redis | ✅ | ✅ | ⚠️ community | ✅ Upstash only | ⚠️ community | ✅ | |
 | PostgreSQL | ✅ | ✅ | | | | | |
 | MySQL | ✅ | ✅ | | | | | |
@@ -326,6 +327,7 @@ await limiter.shutdown({ timeout: 5000 })
 | Store | Use Case | Distributed | Persistence |
 | -------------- | --------------------------------- | ----------- | ----------- |
 | **Memory** | Development, single-process | No | No |
+| **Cluster** | Node cluster / PM2 on one host | Workers | No |
 | **Redis** | Production, multi-instance | Yes | Optional |
 | **Upstash** | Serverless, edge | Yes | Yes |
 | **PostgreSQL** | Already have Postgres | Yes | Yes |
@@ -334,6 +336,7 @@ await limiter.shutdown({ timeout: 5000 })
 
 ```ts
 import { memoryStore } from '@tzezar/throtto/stores/memory'
+import { clusterStore } from '@tzezar/throtto/stores/cluster'
 import { redisStore } from '@tzezar/throtto/stores/redis'
 import { upstashStore } from '@tzezar/throtto/stores/upstash'
 import { postgresStore } from '@tzezar/throtto/stores/postgres'

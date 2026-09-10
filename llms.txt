@@ -32,7 +32,7 @@ fixed-window, sliding-window-counter (default), sliding-window-log, token-bucket
 
 ## Stores
 
-memory (default), redis, upstash, postgres, mysql, sqlite
+memory (default), cluster (Node cluster IPC), redis, upstash, postgres, mysql, sqlite
 
 ## Framework Adapters
 
