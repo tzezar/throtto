@@ -31,6 +31,7 @@ const NODE_APPS = [
   'lambda-app',
   'trpc-app',
   'websocket-app',
+  'cluster-app',
 ]
 
 const BUN_APPS = ['bun-app', 'elysia-app']
