@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0](https://github.com/tzezar/throtto/compare/v2.1.0...v2.2.0) (2026-09-11)
+
+
+### Features
+
+* **stores:** add cluster IPC protocol and message guards ([1317b91](https://github.com/tzezar/throtto/commit/1317b91a56ff03d70bf687b0718a87affc4b064b)), closes [#8](https://github.com/tzezar/throtto/issues/8)
+* **stores:** add cluster transport abstraction over node IPC ([b10c3f5](https://github.com/tzezar/throtto/commit/b10c3f557f96032fa94f95bcf0b9c13a6d4e2410)), closes [#8](https://github.com/tzezar/throtto/issues/8)
+* **stores:** add clusterStore for shared limits across workers ([0cf61ac](https://github.com/tzezar/throtto/commit/0cf61acff278ea4d295b304eca175c2a5bcf3660)), closes [#8](https://github.com/tzezar/throtto/issues/8)
+* **stores:** add primary-owned cluster state with CAS and key locks ([49265a2](https://github.com/tzezar/throtto/commit/49265a2aea1bf27f27c4bfb108af426db1533b56)), closes [#8](https://github.com/tzezar/throtto/issues/8)
+
 ## [2.1.0](https://github.com/tzezar/throtto/compare/v2.0.0...v2.1.0) (2026-08-22)
 
 
